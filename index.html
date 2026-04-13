@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>하루홈 가계부</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>하루홈 가계부</h1>
+    <p class="subtitle">매일의 수입과 지출을 간편하게 기록하세요</p>
+  </header>
+
+  <main class="container">
+    <section class="summary">
+      <div class="summary-card income">
+        <span class="label">이번 달 수입</span>
+        <span class="amount" id="totalIncome">0원</span>
+      </div>
+      <div class="summary-card expense">
+        <span class="label">이번 달 지출</span>
+        <span class="amount" id="totalExpense">0원</span>
+      </div>
+      <div class="summary-card balance">
+        <span class="label">잔액</span>
+        <span class="amount" id="balance">0원</span>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>거래 추가</h2>
+      <form id="txForm" class="tx-form">
+        <div class="form-row">
+          <label>
+            <span>유형</span>
+            <select name="type" id="type" required>
+              <option value="expense">지출</option>
+              <option value="income">수입</option>
+            </select>
+          </label>
+          <label>
+            <span>날짜</span>
+            <input type="date" name="date" id="date" required />
+          </label>
+        </div>
+        <div class="form-row">
+          <label>
+            <span>카테고리</span>
+            <select name="category" id="category" required></select>
+          </label>
+          <label>
+            <span>금액 (원)</span>
+            <input type="number" name="amount" id="amount" min="0" step="1" placeholder="0" required />
+          </label>
+        </div>
+        <label class="full">
+          <span>메모 (선택)</span>
+          <input type="text" name="memo" id="memo" placeholder="예: 점심 식사" maxlength="60" />
+        </label>
+        <button type="submit" class="primary">추가하기</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <div class="panel-header">
+        <h2>거래 내역</h2>
+        <div class="filters">
+          <label>
+            월 선택
+            <input type="month" id="monthFilter" />
+          </label>
+          <button type="button" id="clearMonth" class="ghost">전체 보기</button>
+        </div>
+      </div>
+      <ul id="txList" class="tx-list"></ul>
+      <p id="emptyMsg" class="empty">아직 등록된 거래가 없어요.</p>
+    </section>
+
+    <section class="panel">
+      <h2>카테고리별 지출</h2>
+      <ul id="categoryBreakdown" class="breakdown"></ul>
+      <p id="breakdownEmpty" class="empty">이번 달 지출 내역이 없어요.</p>
+    </section>
+
+    <section class="panel danger-zone">
+      <h2>데이터 관리</h2>
+      <div class="danger-actions">
+        <button type="button" id="exportBtn" class="ghost">JSON으로 내보내기</button>
+        <button type="button" id="resetBtn" class="danger">모든 데이터 삭제</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <small>데이터는 이 브라우저에만 저장됩니다.</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

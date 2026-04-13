@@ -311,6 +311,122 @@ button:active { transform: translateY(1px); }
   border-radius: 4px;
 }
 
+.monthly-overview {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.monthly-overview li {
+  display: grid;
+  grid-template-columns: 82px 1fr 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.monthly-overview li:last-child { border-bottom: none; }
+
+.monthly-overview .mo-month {
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.monthly-overview .mo-income { color: var(--income); font-weight: 600; }
+.monthly-overview .mo-expense { color: var(--expense); font-weight: 600; }
+.monthly-overview .mo-balance { font-weight: 700; white-space: nowrap; }
+.monthly-overview .mo-balance.negative { color: var(--expense); }
+.monthly-overview .mo-balance.positive { color: var(--balance); }
+
+@media (max-width: 520px) {
+  .monthly-overview li {
+    grid-template-columns: 1fr 1fr;
+    row-gap: 4px;
+  }
+  .monthly-overview .mo-month {
+    grid-column: span 2;
+  }
+  .monthly-overview .mo-balance {
+    grid-column: span 2;
+    text-align: right;
+  }
+}
+
+.holdings-summary {
+  margin-bottom: 18px;
+}
+
+.holdings-list .tx-item {
+  grid-template-columns: 1fr auto auto auto;
+}
+
+.holding-amount-input {
+  font: inherit;
+  width: 110px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: right;
+}
+
+.holding-amount-input:focus {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  border-color: var(--primary);
+}
+
+.tx-edit {
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.tx-edit:hover {
+  background: #f3f4f6;
+  color: var(--text);
+}
+
+.tx-amount.asset { color: var(--income); }
+.tx-amount.liability { color: var(--expense); }
+
+.history-list li {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.history-list .history-month {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.history-list .history-value {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.history-list .history-value.negative {
+  color: var(--expense);
+}
+
+.history-list .bar span.negative {
+  background: var(--expense);
+}
+
+.history-list .bar span.positive {
+  background: var(--balance);
+}
+
 .danger-zone .danger-actions {
   display: flex;
   gap: 10px;
@@ -335,5 +451,15 @@ button:active { transform: translateY(1px); }
   }
   .app-header h1 {
     font-size: 1.5rem;
+  }
+  .holdings-list .tx-item {
+    grid-template-columns: 1fr auto auto;
+  }
+  .holding-amount-input {
+    width: 90px;
+  }
+  .history-list li {
+    grid-template-columns: 60px 1fr auto;
+    gap: 8px;
   }
 }

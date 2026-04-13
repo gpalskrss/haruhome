@@ -2,6 +2,8 @@
   "use strict";
 
   const STORAGE_KEY = "haruhome.transactions.v1";
+  const HOLDINGS_KEY = "haruhome.holdings.v1";
+  const HISTORY_KEY = "haruhome.netWorthHistory.v1";
 
   const CATEGORIES = {
     expense: [
@@ -14,9 +16,23 @@
       "문화/여가",
       "쇼핑",
       "경조사",
+      "육아",
       "기타",
     ],
-    income: ["급여", "용돈", "보너스", "이자/투자", "환급", "기타"],
+    income: [
+      "급여(노현준)",
+      "급여(김혜민)",
+      "용돈",
+      "보너스",
+      "이자/투자",
+      "환급",
+      "기타",
+    ],
+  };
+
+  const HOLDING_CATEGORIES = {
+    asset: ["현금", "예금/적금", "주식/펀드", "부동산", "자동차", "기타"],
+    liability: ["주택담보대출", "신용대출", "카드빚", "기타"],
   };
 
   const formatter = new Intl.NumberFormat("ko-KR");
@@ -40,8 +56,24 @@
     clearMonth: $("clearMonth"),
     breakdown: $("categoryBreakdown"),
     breakdownEmpty: $("breakdownEmpty"),
+    monthlyOverview: $("monthlyOverview"),
+    monthlyOverviewEmpty: $("monthlyOverviewEmpty"),
     exportBtn: $("exportBtn"),
     resetBtn: $("resetBtn"),
+    holdingForm: $("holdingForm"),
+    holdingKind: $("holdingKind"),
+    holdingCategory: $("holdingCategory"),
+    holdingName: $("holdingName"),
+    holdingAmount: $("holdingAmount"),
+    holdingList: $("holdingList"),
+    holdingEmpty: $("holdingEmpty"),
+    totalAssets: $("totalAssets"),
+    totalLiabilities: $("totalLiabilities"),
+    netWorth: $("netWorth"),
+    saveSnapshotBtn: $("saveSnapshotBtn"),
+    deleteSnapshotBtn: $("deleteSnapshotBtn"),
+    historyList: $("historyList"),
+    historyEmpty: $("historyEmpty"),
   };
 
   function loadTransactions() {
@@ -59,7 +91,36 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(txs));
   }
 
+  function loadArray(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function loadHoldings() {
+    return loadArray(HOLDINGS_KEY);
+  }
+
+  function saveHoldings(items) {
+    localStorage.setItem(HOLDINGS_KEY, JSON.stringify(items));
+  }
+
+  function loadHistory() {
+    return loadArray(HISTORY_KEY);
+  }
+
+  function saveHistory(items) {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
+  }
+
   let transactions = loadTransactions();
+  let holdings = loadHoldings();
+  let history = loadHistory();
 
   function todayISO() {
     const d = new Date();
@@ -153,6 +214,67 @@
     }
 
     renderBreakdown(monthTxs);
+    renderMonthlyOverview();
+    renderHoldings();
+    renderNetWorthHistory();
+  }
+
+  function renderMonthlyOverview() {
+    els.monthlyOverview.innerHTML = "";
+    if (transactions.length === 0) {
+      els.monthlyOverviewEmpty.classList.remove("hidden");
+      return;
+    }
+    els.monthlyOverviewEmpty.classList.add("hidden");
+
+    const byMonth = new Map();
+    transactions.forEach((t) => {
+      const m = t.date.slice(0, 7);
+      if (!byMonth.has(m)) byMonth.set(m, { income: 0, expense: 0 });
+      const row = byMonth.get(m);
+      if (t.type === "income") row.income += t.amount;
+      else if (t.type === "expense") row.expense += t.amount;
+    });
+
+    const rows = Array.from(byMonth.entries())
+      .map(([month, v]) => ({ month, ...v, balance: v.income - v.expense }))
+      .sort((a, b) => (a.month < b.month ? 1 : -1))
+      .slice(0, 12);
+
+    rows.forEach((r) => {
+      const li = document.createElement("li");
+
+      const month = document.createElement("span");
+      month.className = "mo-month";
+      month.textContent = r.month;
+
+      const income = document.createElement("span");
+      income.className = "mo-income";
+      income.textContent = `+${formatWon(r.income)}`;
+
+      const expense = document.createElement("span");
+      expense.className = "mo-expense";
+      expense.textContent = `-${formatWon(r.expense)}`;
+
+      const balance = document.createElement("span");
+      balance.className = `mo-balance ${r.balance < 0 ? "negative" : "positive"}`;
+      balance.textContent = formatWon(r.balance);
+
+      li.appendChild(month);
+      li.appendChild(income);
+      li.appendChild(expense);
+      li.appendChild(balance);
+
+      li.addEventListener("click", () => {
+        els.monthFilter.value = r.month;
+        render();
+        els.list.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      li.style.cursor = "pointer";
+      li.title = "클릭하면 해당 월로 필터링합니다";
+
+      els.monthlyOverview.appendChild(li);
+    });
   }
 
   function renderBreakdown(monthTxs) {
@@ -196,6 +318,229 @@
     });
   }
 
+  function populateHoldingCategories() {
+    const kind = els.holdingKind.value;
+    els.holdingCategory.innerHTML = "";
+    HOLDING_CATEGORIES[kind].forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.textContent = c;
+      els.holdingCategory.appendChild(opt);
+    });
+  }
+
+  function computeHoldingTotals() {
+    let assets = 0;
+    let liabilities = 0;
+    holdings.forEach((h) => {
+      if (h.kind === "asset") assets += h.amount;
+      else if (h.kind === "liability") liabilities += h.amount;
+    });
+    return { assets, liabilities, netWorth: assets - liabilities };
+  }
+
+  function renderHoldings() {
+    const { assets, liabilities, netWorth } = computeHoldingTotals();
+    els.totalAssets.textContent = formatWon(assets);
+    els.totalLiabilities.textContent = formatWon(liabilities);
+    els.netWorth.textContent = formatWon(netWorth);
+
+    els.holdingList.innerHTML = "";
+    if (holdings.length === 0) {
+      els.holdingEmpty.classList.remove("hidden");
+      return;
+    }
+    els.holdingEmpty.classList.add("hidden");
+
+    const sorted = holdings.slice().sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "asset" ? -1 : 1;
+      return b.amount - a.amount;
+    });
+
+    sorted.forEach((h) => {
+      const li = document.createElement("li");
+      li.className = "tx-item";
+
+      const info = document.createElement("div");
+      info.className = "tx-info";
+      const title = document.createElement("span");
+      title.className = "tx-title";
+      title.textContent = h.name;
+      const meta = document.createElement("span");
+      meta.className = "tx-meta";
+      meta.textContent = `${h.kind === "asset" ? "자산" : "부채"} · ${h.category}`;
+      info.appendChild(title);
+      info.appendChild(meta);
+
+      const amount = document.createElement("span");
+      amount.className = `tx-amount ${h.kind}`;
+      amount.textContent = `${h.kind === "liability" ? "-" : ""}${formatWon(h.amount)}`;
+
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "tx-edit";
+      edit.textContent = "수정";
+      edit.addEventListener("click", () => toggleEditHolding(li, h, amount, edit));
+
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "tx-delete";
+      del.setAttribute("aria-label", "삭제");
+      del.textContent = "✕";
+      del.addEventListener("click", () => deleteHolding(h.id));
+
+      li.appendChild(info);
+      li.appendChild(amount);
+      li.appendChild(edit);
+      li.appendChild(del);
+      els.holdingList.appendChild(li);
+    });
+  }
+
+  function toggleEditHolding(li, holding, amountEl, editBtn) {
+    if (editBtn.dataset.editing === "1") return;
+    editBtn.dataset.editing = "1";
+
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.step = "1";
+    input.value = String(holding.amount);
+    input.className = "holding-amount-input";
+
+    amountEl.replaceWith(input);
+    editBtn.textContent = "저장";
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const next = Number(input.value);
+      if (!Number.isFinite(next) || next < 0) {
+        alert("올바른 금액을 입력해 주세요.");
+        input.focus();
+        return;
+      }
+      updateHoldingAmount(holding.id, next);
+    };
+
+    editBtn.onclick = commit;
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        commit();
+      } else if (e.key === "Escape") {
+        renderHoldings();
+      }
+    });
+  }
+
+  function renderNetWorthHistory() {
+    els.historyList.innerHTML = "";
+    if (history.length === 0) {
+      els.historyEmpty.classList.remove("hidden");
+      return;
+    }
+    els.historyEmpty.classList.add("hidden");
+
+    const sorted = history.slice().sort((a, b) => (a.month < b.month ? -1 : 1));
+    const recent = sorted.slice(-12);
+    const maxAbs = Math.max(1, ...recent.map((r) => Math.abs(r.netWorth)));
+
+    recent.forEach((row) => {
+      const li = document.createElement("li");
+
+      const month = document.createElement("span");
+      month.className = "history-month";
+      month.textContent = row.month;
+
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const fill = document.createElement("span");
+      const pct = Math.round((Math.abs(row.netWorth) / maxAbs) * 100);
+      fill.style.width = `${pct}%`;
+      fill.className = row.netWorth < 0 ? "negative" : "positive";
+      bar.appendChild(fill);
+
+      const value = document.createElement("span");
+      value.className = `history-value${row.netWorth < 0 ? " negative" : ""}`;
+      value.textContent = formatWon(row.netWorth);
+
+      li.appendChild(month);
+      li.appendChild(bar);
+      li.appendChild(value);
+      els.historyList.appendChild(li);
+    });
+  }
+
+  function addHolding(e) {
+    e.preventDefault();
+    const kind = els.holdingKind.value;
+    const category = els.holdingCategory.value;
+    const name = els.holdingName.value.trim();
+    const amount = Number(els.holdingAmount.value);
+
+    if (!category || !name || !Number.isFinite(amount) || amount < 0) {
+      alert("카테고리, 이름, 금액을 확인해 주세요.");
+      return;
+    }
+
+    holdings.push({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      kind,
+      category,
+      name,
+      amount,
+      updatedAt: Date.now(),
+    });
+    saveHoldings(holdings);
+
+    els.holdingName.value = "";
+    els.holdingAmount.value = "";
+    renderHoldings();
+  }
+
+  function updateHoldingAmount(id, next) {
+    const h = holdings.find((x) => x.id === id);
+    if (!h) return;
+    h.amount = next;
+    h.updatedAt = Date.now();
+    saveHoldings(holdings);
+    renderHoldings();
+  }
+
+  function deleteHolding(id) {
+    const h = holdings.find((x) => x.id === id);
+    if (!h) return;
+    if (!confirm(`"${h.name}" 항목을 삭제할까요?`)) return;
+    holdings = holdings.filter((x) => x.id !== id);
+    saveHoldings(holdings);
+    renderHoldings();
+  }
+
+  function saveMonthlySnapshot() {
+    const month = currentMonth();
+    const { assets, liabilities, netWorth } = computeHoldingTotals();
+    const existingIdx = history.findIndex((r) => r.month === month);
+    const record = { month, assets, liabilities, netWorth, savedAt: Date.now() };
+    if (existingIdx >= 0) history[existingIdx] = record;
+    else history.push(record);
+    saveHistory(history);
+    renderNetWorthHistory();
+  }
+
+  function deleteMonthlySnapshot() {
+    const month = currentMonth();
+    const idx = history.findIndex((r) => r.month === month);
+    if (idx < 0) {
+      alert("이번 달 스냅샷이 없어요.");
+      return;
+    }
+    if (!confirm(`${month} 스냅샷을 삭제할까요?`)) return;
+    history.splice(idx, 1);
+    saveHistory(history);
+    renderNetWorthHistory();
+  }
+
   function addTx(e) {
     e.preventDefault();
     const type = els.type.value;
@@ -236,14 +581,24 @@
   }
 
   function resetAll() {
-    if (!confirm("모든 데이터를 영구 삭제합니다. 계속할까요?")) return;
+    if (!confirm("거래 · 자산 · 추이 데이터를 모두 영구 삭제합니다. 계속할까요?")) return;
     transactions = [];
+    holdings = [];
+    history = [];
     saveTransactions(transactions);
+    saveHoldings(holdings);
+    saveHistory(history);
     render();
   }
 
   function exportJson() {
-    const blob = new Blob([JSON.stringify(transactions, null, 2)], {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      transactions,
+      holdings,
+      netWorthHistory: history,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -270,6 +625,12 @@
     });
     els.resetBtn.addEventListener("click", resetAll);
     els.exportBtn.addEventListener("click", exportJson);
+
+    populateHoldingCategories();
+    els.holdingKind.addEventListener("change", populateHoldingCategories);
+    els.holdingForm.addEventListener("submit", addHolding);
+    els.saveSnapshotBtn.addEventListener("click", saveMonthlySnapshot);
+    els.deleteSnapshotBtn.addEventListener("click", deleteMonthlySnapshot);
 
     render();
   }

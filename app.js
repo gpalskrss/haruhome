@@ -59,13 +59,7 @@
     breakdown: $("categoryBreakdown"),
     breakdownEmpty: $("breakdownEmpty"),
     monthlyOverviewEmpty: $("monthlyOverviewEmpty"),
-    monthlyTable: $("monthlyTable"),
-    monthlyTableBody: $("monthlyTableBody"),
-    monthlyTableFoot: $("monthlyTableFoot"),
-    monthlyTotalIncome: $("monthlyTotalIncome"),
-    monthlyTotalExpense: $("monthlyTotalExpense"),
-    monthlyTotalSavings: $("monthlyTotalSavings"),
-    monthlyTotalRate: $("monthlyTotalRate"),
+    monthlyChart: $("monthlyChart"),
     exportBtn: $("exportBtn"),
     resetBtn: $("resetBtn"),
     holdingForm: $("holdingForm"),
@@ -437,15 +431,13 @@
   }
 
   function renderMonthlyOverview() {
-    els.monthlyTableBody.innerHTML = "";
-    els.monthlyTableFoot.hidden = true;
+    els.monthlyChart.innerHTML = "";
     if (transactions.length === 0) {
       els.monthlyOverviewEmpty.classList.remove("hidden");
-      els.monthlyTable.hidden = true;
+      els.monthlyChart.setAttribute("viewBox", "0 0 100 100");
       return;
     }
     els.monthlyOverviewEmpty.classList.add("hidden");
-    els.monthlyTable.hidden = false;
 
     const byMonth = computeMonthlyTotals();
     const rows = Array.from(byMonth.entries())
@@ -455,59 +447,155 @@
         expense: v.expense,
         savings: v.income - v.expense,
       }))
-      .sort((a, b) => (a.month < b.month ? 1 : -1))
-      .slice(0, 12);
+      .sort((a, b) => (a.month < b.month ? -1 : 1))
+      .slice(-12);
 
-    let totalIncome = 0;
-    let totalExpense = 0;
+    drawMonthlyChart(rows);
+  }
 
-    rows.forEach((r) => {
-      totalIncome += r.income;
-      totalExpense += r.expense;
+  function drawMonthlyChart(rows) {
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = els.monthlyChart;
+    svg.innerHTML = "";
 
-      const tr = document.createElement("tr");
-      tr.title = "클릭하면 해당 월로 필터링합니다";
+    const marginLeft = 60;
+    const marginRight = 16;
+    const marginTop = 16;
+    const marginBottom = 36;
+    const groupWidth = 64;
+    const barWidth = 16;
+    const barGap = 4;
 
-      const monthCell = document.createElement("td");
-      monthCell.textContent = r.month;
-      tr.appendChild(monthCell);
+    const chartHeight = 260;
+    const chartWidth = Math.max(360, marginLeft + marginRight + groupWidth * rows.length);
 
-      const incomeCell = document.createElement("td");
-      incomeCell.className = "num col-income";
-      incomeCell.textContent = formatWon(r.income);
-      tr.appendChild(incomeCell);
+    svg.setAttribute("viewBox", `0 0 ${chartWidth} ${chartHeight}`);
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.style.width = `${chartWidth}px`;
 
-      const expenseCell = document.createElement("td");
-      expenseCell.className = "num col-expense";
-      expenseCell.textContent = formatWon(r.expense);
-      tr.appendChild(expenseCell);
+    const plotWidth = chartWidth - marginLeft - marginRight;
+    const plotHeight = chartHeight - marginTop - marginBottom;
 
-      const savingsCell = document.createElement("td");
-      savingsCell.className = `num col-savings ${r.savings < 0 ? "negative" : "positive"}`;
-      savingsCell.textContent = formatWon(r.savings);
-      tr.appendChild(savingsCell);
+    const maxPositive = Math.max(
+      1,
+      ...rows.map((r) => Math.max(r.income, r.expense, Math.max(0, r.savings)))
+    );
+    const minNegative = Math.min(0, ...rows.map((r) => r.savings));
+    const domainTop = niceMax(maxPositive);
+    const domainBottom = minNegative < 0 ? -niceMax(Math.abs(minNegative)) : 0;
+    const domainRange = domainTop - domainBottom;
 
-      const rateCell = document.createElement("td");
-      rateCell.className = `num col-rate${r.savings < 0 ? " negative" : ""}`;
-      rateCell.textContent = formatSavingsRate(r.income, r.expense);
-      tr.appendChild(rateCell);
+    const yFromValue = (v) =>
+      marginTop + ((domainTop - v) / domainRange) * plotHeight;
 
-      tr.addEventListener("click", () => {
-        els.monthFilter.value = r.month;
-        render();
-        els.list.scrollIntoView({ behavior: "smooth", block: "start" });
+    // Gridlines + labels (5 ticks)
+    const ticks = 5;
+    for (let i = 0; i <= ticks; i++) {
+      const v = domainTop - (domainRange * i) / ticks;
+      const y = yFromValue(v);
+      const line = document.createElementNS(svgNS, "line");
+      line.setAttribute("class", "grid-line");
+      line.setAttribute("x1", marginLeft);
+      line.setAttribute("x2", chartWidth - marginRight);
+      line.setAttribute("y1", y);
+      line.setAttribute("y2", y);
+      svg.appendChild(line);
+
+      const text = document.createElementNS(svgNS, "text");
+      text.setAttribute("class", "axis-label");
+      text.setAttribute("x", marginLeft - 8);
+      text.setAttribute("y", y + 4);
+      text.setAttribute("text-anchor", "end");
+      text.textContent = shortWon(v);
+      svg.appendChild(text);
+    }
+
+    // Zero line (if negative values exist)
+    if (domainBottom < 0) {
+      const zeroY = yFromValue(0);
+      const zeroLine = document.createElementNS(svgNS, "line");
+      zeroLine.setAttribute("x1", marginLeft);
+      zeroLine.setAttribute("x2", chartWidth - marginRight);
+      zeroLine.setAttribute("y1", zeroY);
+      zeroLine.setAttribute("y2", zeroY);
+      zeroLine.setAttribute("stroke", "#94a3b8");
+      zeroLine.setAttribute("stroke-width", "1.5");
+      svg.appendChild(zeroLine);
+    }
+
+    rows.forEach((r, idx) => {
+      const groupX = marginLeft + idx * groupWidth + (groupWidth - (3 * barWidth + 2 * barGap)) / 2;
+
+      const bars = [
+        { cls: "bar-income", value: r.income, label: `${r.month} 수입\n${formatWon(r.income)}` },
+        { cls: "bar-expense", value: r.expense, label: `${r.month} 지출\n${formatWon(r.expense)}` },
+        {
+          cls: `bar-savings${r.savings < 0 ? " negative" : ""}`,
+          value: r.savings,
+          label: `${r.month} 저축\n${formatWon(r.savings)}`,
+        },
+      ];
+
+      bars.forEach((b, bi) => {
+        const x = groupX + bi * (barWidth + barGap);
+        const zeroY = yFromValue(0);
+        const topY = yFromValue(Math.max(b.value, 0));
+        const bottomY = yFromValue(Math.min(b.value, 0));
+        const y = b.value >= 0 ? topY : zeroY;
+        const h = Math.max(1, b.value >= 0 ? zeroY - topY : bottomY - zeroY);
+
+        const rect = document.createElementNS(svgNS, "rect");
+        rect.setAttribute("class", `bar ${b.cls}`);
+        rect.setAttribute("x", x);
+        rect.setAttribute("y", y);
+        rect.setAttribute("width", barWidth);
+        rect.setAttribute("height", h);
+        rect.setAttribute("rx", 2);
+
+        const title = document.createElementNS(svgNS, "title");
+        title.textContent = b.label;
+        rect.appendChild(title);
+
+        rect.addEventListener("click", () => {
+          els.monthFilter.value = r.month;
+          render();
+          els.list.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+
+        svg.appendChild(rect);
       });
 
-      els.monthlyTableBody.appendChild(tr);
+      // Month label
+      const label = document.createElementNS(svgNS, "text");
+      label.setAttribute("class", "month-label");
+      label.setAttribute("x", groupX + (3 * barWidth + 2 * barGap) / 2);
+      label.setAttribute("y", chartHeight - marginBottom + 18);
+      label.setAttribute("text-anchor", "middle");
+      label.textContent = r.month.slice(2); // "YY-MM" 형식으로 축약
+      svg.appendChild(label);
     });
+  }
 
-    const totalSavings = totalIncome - totalExpense;
-    els.monthlyTotalIncome.textContent = formatWon(totalIncome);
-    els.monthlyTotalExpense.textContent = formatWon(totalExpense);
-    els.monthlyTotalSavings.textContent = formatWon(totalSavings);
-    els.monthlyTotalSavings.className = `num col-savings ${totalSavings < 0 ? "negative" : "positive"}`;
-    els.monthlyTotalRate.textContent = formatSavingsRate(totalIncome, totalExpense);
-    els.monthlyTableFoot.hidden = false;
+  function niceMax(value) {
+    if (value <= 0) return 1;
+    const pow = Math.pow(10, Math.floor(Math.log10(value)));
+    const n = value / pow;
+    let nice;
+    if (n <= 1) nice = 1;
+    else if (n <= 2) nice = 2;
+    else if (n <= 2.5) nice = 2.5;
+    else if (n <= 5) nice = 5;
+    else nice = 10;
+    return nice * pow;
+  }
+
+  function shortWon(n) {
+    const abs = Math.abs(n);
+    const sign = n < 0 ? "-" : "";
+    if (abs >= 100000000) return `${sign}${(abs / 100000000).toFixed(1)}억`;
+    if (abs >= 10000) return `${sign}${Math.round(abs / 10000).toLocaleString("ko-KR")}만`;
+    if (abs === 0) return "0";
+    return `${sign}${abs.toLocaleString("ko-KR")}`;
   }
 
   function renderBreakdown(monthTxs) {

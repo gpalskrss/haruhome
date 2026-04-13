@@ -358,6 +358,60 @@ button:active { transform: translateY(1px); }
   border-radius: 4px;
 }
 
+.table-wrap {
+  overflow-x: auto;
+  margin: 0 -4px;
+}
+
+.monthly-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.monthly-table th,
+.monthly-table td {
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.monthly-table thead th {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+  background: #f8fafc;
+}
+
+.monthly-table tbody tr {
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.monthly-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.monthly-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.monthly-table .col-income { color: var(--income); font-weight: 600; }
+.monthly-table .col-expense { color: var(--expense); font-weight: 600; }
+.monthly-table .col-savings.positive { color: var(--balance); font-weight: 700; }
+.monthly-table .col-savings.negative { color: var(--expense); font-weight: 700; }
+.monthly-table .col-rate { font-weight: 600; }
+.monthly-table .col-rate.negative { color: var(--expense); }
+
+.monthly-table tfoot th {
+  background: #f8fafc;
+  font-weight: 700;
+  border-top: 2px solid var(--border);
+  border-bottom: none;
+}
+
 .monthly-overview {
   list-style: none;
   margin: 0;
@@ -562,6 +616,11 @@ button:active { transform: translateY(1px); }
   }
   .tx-form label.full {
     grid-column: auto;
+  }
+  .monthly-table th,
+  .monthly-table td {
+    padding: 8px 6px;
+    font-size: 0.85rem;
   }
   .app-header h1 {
     font-size: 1.5rem;

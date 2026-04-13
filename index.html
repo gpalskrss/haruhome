@@ -97,7 +97,29 @@
 
       <section class="panel">
         <h2>월별 수입·지출</h2>
-        <ul id="monthlyOverview" class="monthly-overview"></ul>
+        <div class="table-wrap">
+          <table class="monthly-table" id="monthlyTable">
+            <thead>
+              <tr>
+                <th>월</th>
+                <th class="num">수입</th>
+                <th class="num">지출</th>
+                <th class="num">저축</th>
+                <th class="num">저축률</th>
+              </tr>
+            </thead>
+            <tbody id="monthlyTableBody"></tbody>
+            <tfoot id="monthlyTableFoot" hidden>
+              <tr>
+                <th>합계</th>
+                <th class="num" id="monthlyTotalIncome">0원</th>
+                <th class="num" id="monthlyTotalExpense">0원</th>
+                <th class="num" id="monthlyTotalSavings">0원</th>
+                <th class="num" id="monthlyTotalRate">--</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
         <p id="monthlyOverviewEmpty" class="empty">아직 월별 내역이 없어요.</p>
       </section>
     </div>

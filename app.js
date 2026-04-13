@@ -58,8 +58,14 @@
     clearMonth: $("clearMonth"),
     breakdown: $("categoryBreakdown"),
     breakdownEmpty: $("breakdownEmpty"),
-    monthlyOverview: $("monthlyOverview"),
     monthlyOverviewEmpty: $("monthlyOverviewEmpty"),
+    monthlyTable: $("monthlyTable"),
+    monthlyTableBody: $("monthlyTableBody"),
+    monthlyTableFoot: $("monthlyTableFoot"),
+    monthlyTotalIncome: $("monthlyTotalIncome"),
+    monthlyTotalExpense: $("monthlyTotalExpense"),
+    monthlyTotalSavings: $("monthlyTotalSavings"),
+    monthlyTotalRate: $("monthlyTotalRate"),
     exportBtn: $("exportBtn"),
     resetBtn: $("resetBtn"),
     holdingForm: $("holdingForm"),
@@ -431,61 +437,77 @@
   }
 
   function renderMonthlyOverview() {
-    els.monthlyOverview.innerHTML = "";
+    els.monthlyTableBody.innerHTML = "";
+    els.monthlyTableFoot.hidden = true;
     if (transactions.length === 0) {
       els.monthlyOverviewEmpty.classList.remove("hidden");
+      els.monthlyTable.hidden = true;
       return;
     }
     els.monthlyOverviewEmpty.classList.add("hidden");
+    els.monthlyTable.hidden = false;
 
-    const byMonth = new Map();
-    transactions.forEach((t) => {
-      const m = t.date.slice(0, 7);
-      if (!byMonth.has(m)) byMonth.set(m, { income: 0, expense: 0 });
-      const row = byMonth.get(m);
-      if (t.type === "income") row.income += t.amount;
-      else if (t.type === "expense") row.expense += t.amount;
-    });
-
+    const byMonth = computeMonthlyTotals();
     const rows = Array.from(byMonth.entries())
-      .map(([month, v]) => ({ month, ...v, balance: v.income - v.expense }))
+      .map(([month, v]) => ({
+        month,
+        income: v.income,
+        expense: v.expense,
+        savings: v.income - v.expense,
+      }))
       .sort((a, b) => (a.month < b.month ? 1 : -1))
       .slice(0, 12);
 
+    let totalIncome = 0;
+    let totalExpense = 0;
+
     rows.forEach((r) => {
-      const li = document.createElement("li");
+      totalIncome += r.income;
+      totalExpense += r.expense;
 
-      const month = document.createElement("span");
-      month.className = "mo-month";
-      month.textContent = r.month;
+      const tr = document.createElement("tr");
+      tr.title = "클릭하면 해당 월로 필터링합니다";
 
-      const income = document.createElement("span");
-      income.className = "mo-income";
-      income.textContent = `+${formatWon(r.income)}`;
+      const monthCell = document.createElement("td");
+      monthCell.textContent = r.month;
+      tr.appendChild(monthCell);
 
-      const expense = document.createElement("span");
-      expense.className = "mo-expense";
-      expense.textContent = `-${formatWon(r.expense)}`;
+      const incomeCell = document.createElement("td");
+      incomeCell.className = "num col-income";
+      incomeCell.textContent = formatWon(r.income);
+      tr.appendChild(incomeCell);
 
-      const balance = document.createElement("span");
-      balance.className = `mo-balance ${r.balance < 0 ? "negative" : "positive"}`;
-      balance.textContent = formatWon(r.balance);
+      const expenseCell = document.createElement("td");
+      expenseCell.className = "num col-expense";
+      expenseCell.textContent = formatWon(r.expense);
+      tr.appendChild(expenseCell);
 
-      li.appendChild(month);
-      li.appendChild(income);
-      li.appendChild(expense);
-      li.appendChild(balance);
+      const savingsCell = document.createElement("td");
+      savingsCell.className = `num col-savings ${r.savings < 0 ? "negative" : "positive"}`;
+      savingsCell.textContent = formatWon(r.savings);
+      tr.appendChild(savingsCell);
 
-      li.addEventListener("click", () => {
+      const rateCell = document.createElement("td");
+      rateCell.className = `num col-rate${r.savings < 0 ? " negative" : ""}`;
+      rateCell.textContent = formatSavingsRate(r.income, r.expense);
+      tr.appendChild(rateCell);
+
+      tr.addEventListener("click", () => {
         els.monthFilter.value = r.month;
         render();
         els.list.scrollIntoView({ behavior: "smooth", block: "start" });
       });
-      li.style.cursor = "pointer";
-      li.title = "클릭하면 해당 월로 필터링합니다";
 
-      els.monthlyOverview.appendChild(li);
+      els.monthlyTableBody.appendChild(tr);
     });
+
+    const totalSavings = totalIncome - totalExpense;
+    els.monthlyTotalIncome.textContent = formatWon(totalIncome);
+    els.monthlyTotalExpense.textContent = formatWon(totalExpense);
+    els.monthlyTotalSavings.textContent = formatWon(totalSavings);
+    els.monthlyTotalSavings.className = `num col-savings ${totalSavings < 0 ? "negative" : "positive"}`;
+    els.monthlyTotalRate.textContent = formatSavingsRate(totalIncome, totalExpense);
+    els.monthlyTableFoot.hidden = false;
   }
 
   function renderBreakdown(monthTxs) {

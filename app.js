@@ -4,6 +4,8 @@
   const STORAGE_KEY = "haruhome.transactions.v1";
   const HOLDINGS_KEY = "haruhome.holdings.v1";
   const HISTORY_KEY = "haruhome.netWorthHistory.v1";
+  const GOALS_KEY = "haruhome.goals.v1";
+  const UI_KEY = "haruhome.ui.v1";
 
   const CATEGORIES = {
     expense: [
@@ -74,6 +76,20 @@
     deleteSnapshotBtn: $("deleteSnapshotBtn"),
     historyList: $("historyList"),
     historyEmpty: $("historyEmpty"),
+    savingsRate: $("savingsRate"),
+    goalYear: $("goalYear"),
+    goalForm: $("goalForm"),
+    goalAmount: $("goalAmount"),
+    goalAccumulated: $("goalAccumulated"),
+    goalTarget: $("goalTarget"),
+    goalRemaining: $("goalRemaining"),
+    goalPercent: $("goalPercent"),
+    goalBarFill: $("goalBarFill"),
+    goalHint: $("goalHint"),
+    savingsRateList: $("savingsRateList"),
+    savingsRateEmpty: $("savingsRateEmpty"),
+    tabs: document.querySelectorAll(".tab-btn"),
+    tabPanels: document.querySelectorAll(".tab-panel"),
   };
 
   function loadTransactions() {
@@ -118,9 +134,41 @@
     localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
   }
 
+  function loadGoals() {
+    try {
+      const raw = localStorage.getItem(GOALS_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveGoals(obj) {
+    localStorage.setItem(GOALS_KEY, JSON.stringify(obj));
+  }
+
+  function loadUIState() {
+    try {
+      const raw = localStorage.getItem(UI_KEY);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveUIState(obj) {
+    localStorage.setItem(UI_KEY, JSON.stringify(obj));
+  }
+
   let transactions = loadTransactions();
   let holdings = loadHoldings();
   let history = loadHistory();
+  let goals = loadGoals();
+  let uiState = loadUIState();
 
   function todayISO() {
     const d = new Date();
@@ -171,6 +219,7 @@
     els.totalIncome.textContent = formatWon(income);
     els.totalExpense.textContent = formatWon(expense);
     els.balance.textContent = formatWon(income - expense);
+    els.savingsRate.textContent = formatSavingsRate(income, expense);
 
     const list = getFilteredTransactions();
     els.list.innerHTML = "";
@@ -217,6 +266,168 @@
     renderMonthlyOverview();
     renderHoldings();
     renderNetWorthHistory();
+    renderGoalProgress();
+    renderSavingsRateList();
+  }
+
+  function formatSavingsRate(income, expense) {
+    if (income <= 0) return "--";
+    const rate = ((income - expense) / income) * 100;
+    return `${rate.toFixed(1)}%`;
+  }
+
+  function computeMonthlyTotals() {
+    const byMonth = new Map();
+    transactions.forEach((t) => {
+      const m = t.date.slice(0, 7);
+      if (!byMonth.has(m)) byMonth.set(m, { income: 0, expense: 0 });
+      const row = byMonth.get(m);
+      if (t.type === "income") row.income += t.amount;
+      else if (t.type === "expense") row.expense += t.amount;
+    });
+    return byMonth;
+  }
+
+  function renderGoalProgress() {
+    populateGoalYearOptions();
+    const year = String(currentGoalYear());
+    const target = Number(goals[year] || 0);
+
+    const byMonth = computeMonthlyTotals();
+    let accumulated = 0;
+    byMonth.forEach((v, month) => {
+      if (month.startsWith(`${year}-`)) {
+        accumulated += v.income - v.expense;
+      }
+    });
+
+    els.goalAmount.value = target > 0 ? String(target) : "";
+    els.goalAccumulated.textContent = formatWon(accumulated);
+    els.goalTarget.textContent = target > 0 ? formatWon(target) : "미설정";
+    const remaining = target > 0 ? target - accumulated : 0;
+    els.goalRemaining.textContent = target > 0 ? formatWon(Math.max(0, remaining)) : "--";
+
+    if (target > 0) {
+      const pct = Math.max(0, (accumulated / target) * 100);
+      const capped = Math.min(100, pct);
+      els.goalPercent.textContent = `${pct.toFixed(1)}%`;
+      els.goalBarFill.style.width = `${capped}%`;
+      els.goalBarFill.classList.toggle("complete", pct >= 100);
+      if (pct >= 100) {
+        els.goalHint.textContent = `🎉 ${year}년 목표 달성! 초과 저축: ${formatWon(accumulated - target)}`;
+      } else {
+        els.goalHint.textContent = `${year}년 목표까지 ${formatWon(target - accumulated)} 남았어요.`;
+      }
+    } else {
+      els.goalPercent.textContent = "--";
+      els.goalBarFill.style.width = "0%";
+      els.goalBarFill.classList.remove("complete");
+      els.goalHint.textContent = `${year}년 목표 금액을 입력하면 달성률이 표시됩니다.`;
+    }
+  }
+
+  function currentGoalYear() {
+    const saved = uiState.goalYear;
+    if (saved) return Number(saved);
+    return new Date().getFullYear();
+  }
+
+  function populateGoalYearOptions() {
+    const now = new Date().getFullYear();
+    const years = new Set();
+    years.add(now);
+    years.add(2026);
+    transactions.forEach((t) => years.add(Number(t.date.slice(0, 4))));
+    Object.keys(goals).forEach((y) => years.add(Number(y)));
+    const sorted = Array.from(years).filter(Number.isFinite).sort((a, b) => b - a);
+
+    const selected = String(currentGoalYear());
+    els.goalYear.innerHTML = "";
+    sorted.forEach((y) => {
+      const opt = document.createElement("option");
+      opt.value = String(y);
+      opt.textContent = `${y}년`;
+      if (String(y) === selected) opt.selected = true;
+      els.goalYear.appendChild(opt);
+    });
+  }
+
+  function renderSavingsRateList() {
+    els.savingsRateList.innerHTML = "";
+    const byMonth = computeMonthlyTotals();
+    if (byMonth.size === 0) {
+      els.savingsRateEmpty.classList.remove("hidden");
+      return;
+    }
+    els.savingsRateEmpty.classList.add("hidden");
+
+    const rows = Array.from(byMonth.entries())
+      .map(([month, v]) => ({
+        month,
+        income: v.income,
+        expense: v.expense,
+        balance: v.income - v.expense,
+      }))
+      .sort((a, b) => (a.month < b.month ? 1 : -1))
+      .slice(0, 12);
+
+    rows.forEach((r) => {
+      const li = document.createElement("li");
+
+      const month = document.createElement("span");
+      month.className = "mo-month";
+      month.textContent = r.month;
+
+      const rate = document.createElement("span");
+      rate.className = "mo-income";
+      rate.textContent = `저축률 ${formatSavingsRate(r.income, r.expense)}`;
+
+      const savings = document.createElement("span");
+      savings.className = "mo-expense";
+      savings.textContent = `저축 ${formatWon(r.balance)}`;
+      savings.style.color = r.balance < 0 ? "var(--expense)" : "var(--income)";
+
+      const balance = document.createElement("span");
+      balance.className = `mo-balance ${r.balance < 0 ? "negative" : "positive"}`;
+      balance.textContent = `수입 ${formatWon(r.income)}`;
+
+      li.appendChild(month);
+      li.appendChild(rate);
+      li.appendChild(savings);
+      li.appendChild(balance);
+      els.savingsRateList.appendChild(li);
+    });
+  }
+
+  function saveGoal(e) {
+    e.preventDefault();
+    const year = String(currentGoalYear());
+    const amount = Number(els.goalAmount.value);
+    if (!Number.isFinite(amount) || amount < 0) {
+      alert("0 이상의 금액을 입력해 주세요.");
+      return;
+    }
+    if (amount === 0) {
+      delete goals[year];
+    } else {
+      goals[year] = amount;
+    }
+    saveGoals(goals);
+    renderGoalProgress();
+  }
+
+  function switchTab(tabName) {
+    els.tabs.forEach((btn) => {
+      const active = btn.dataset.tab === tabName;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-selected", active ? "true" : "false");
+    });
+    els.tabPanels.forEach((panel) => {
+      const match = panel.dataset.tabPanel === tabName;
+      panel.hidden = !match;
+    });
+    uiState.activeTab = tabName;
+    saveUIState(uiState);
   }
 
   function renderMonthlyOverview() {
@@ -581,13 +792,15 @@
   }
 
   function resetAll() {
-    if (!confirm("거래 · 자산 · 추이 데이터를 모두 영구 삭제합니다. 계속할까요?")) return;
+    if (!confirm("거래 · 자산 · 추이 · 목표 데이터를 모두 영구 삭제합니다. 계속할까요?")) return;
     transactions = [];
     holdings = [];
     history = [];
+    goals = {};
     saveTransactions(transactions);
     saveHoldings(holdings);
     saveHistory(history);
+    saveGoals(goals);
     render();
   }
 
@@ -597,6 +810,7 @@
       transactions,
       holdings,
       netWorthHistory: history,
+      goals,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json",
@@ -631,6 +845,18 @@
     els.holdingForm.addEventListener("submit", addHolding);
     els.saveSnapshotBtn.addEventListener("click", saveMonthlySnapshot);
     els.deleteSnapshotBtn.addEventListener("click", deleteMonthlySnapshot);
+
+    els.tabs.forEach((btn) => {
+      btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+    switchTab(uiState.activeTab || "transactions");
+
+    els.goalYear.addEventListener("change", () => {
+      uiState.goalYear = els.goalYear.value;
+      saveUIState(uiState);
+      renderGoalProgress();
+    });
+    els.goalForm.addEventListener("submit", saveGoal);
 
     render();
   }

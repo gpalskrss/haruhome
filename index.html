@@ -12,150 +12,225 @@
     <p class="subtitle">매일의 수입과 지출을 간편하게 기록하세요</p>
   </header>
 
+  <nav class="tabs" role="tablist" aria-label="섹션 선택">
+    <button type="button" class="tab-btn" role="tab" data-tab="transactions">거래</button>
+    <button type="button" class="tab-btn" role="tab" data-tab="assets">자산</button>
+    <button type="button" class="tab-btn" role="tab" data-tab="goals">목표</button>
+  </nav>
+
   <main class="container">
-    <section class="summary">
-      <div class="summary-card income">
-        <span class="label">이번 달 수입</span>
-        <span class="amount" id="totalIncome">0원</span>
-      </div>
-      <div class="summary-card expense">
-        <span class="label">이번 달 지출</span>
-        <span class="amount" id="totalExpense">0원</span>
-      </div>
-      <div class="summary-card balance">
-        <span class="label">잔액</span>
-        <span class="amount" id="balance">0원</span>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2>거래 추가</h2>
-      <form id="txForm" class="tx-form">
-        <div class="form-row">
-          <label>
-            <span>유형</span>
-            <select name="type" id="type" required>
-              <option value="expense">지출</option>
-              <option value="income">수입</option>
-            </select>
-          </label>
-          <label>
-            <span>날짜</span>
-            <input type="date" name="date" id="date" required />
-          </label>
-        </div>
-        <div class="form-row">
-          <label>
-            <span>카테고리</span>
-            <select name="category" id="category" required></select>
-          </label>
-          <label>
-            <span>금액 (원)</span>
-            <input type="number" name="amount" id="amount" min="0" step="1" placeholder="0" required />
-          </label>
-        </div>
-        <label class="full">
-          <span>메모 (선택)</span>
-          <input type="text" name="memo" id="memo" placeholder="예: 점심 식사" maxlength="60" />
-        </label>
-        <button type="submit" class="primary">추가하기</button>
-      </form>
-    </section>
-
-    <section class="panel">
-      <div class="panel-header">
-        <h2>거래 내역</h2>
-        <div class="filters">
-          <label>
-            월 선택
-            <input type="month" id="monthFilter" />
-          </label>
-          <button type="button" id="clearMonth" class="ghost">전체 보기</button>
-        </div>
-      </div>
-      <ul id="txList" class="tx-list"></ul>
-      <p id="emptyMsg" class="empty">아직 등록된 거래가 없어요.</p>
-    </section>
-
-    <section class="panel">
-      <h2>카테고리별 지출</h2>
-      <ul id="categoryBreakdown" class="breakdown"></ul>
-      <p id="breakdownEmpty" class="empty">이번 달 지출 내역이 없어요.</p>
-    </section>
-
-    <section class="panel">
-      <h2>월별 수입·지출</h2>
-      <ul id="monthlyOverview" class="monthly-overview"></ul>
-      <p id="monthlyOverviewEmpty" class="empty">아직 월별 내역이 없어요.</p>
-    </section>
-
-    <section class="panel">
-      <h2>자산 현황</h2>
-      <div class="summary holdings-summary">
+    <!-- 거래 탭 -->
+    <div class="tab-panel" data-tab-panel="transactions">
+      <section class="summary summary-4">
         <div class="summary-card income">
-          <span class="label">총자산</span>
-          <span class="amount" id="totalAssets">0원</span>
+          <span class="label">이번 달 수입</span>
+          <span class="amount" id="totalIncome">0원</span>
         </div>
         <div class="summary-card expense">
-          <span class="label">총부채</span>
-          <span class="amount" id="totalLiabilities">0원</span>
+          <span class="label">이번 달 지출</span>
+          <span class="amount" id="totalExpense">0원</span>
         </div>
         <div class="summary-card balance">
-          <span class="label">순자산</span>
-          <span class="amount" id="netWorth">0원</span>
+          <span class="label">잔액</span>
+          <span class="amount" id="balance">0원</span>
         </div>
-      </div>
-
-      <form id="holdingForm" class="tx-form">
-        <div class="form-row">
-          <label>
-            <span>유형</span>
-            <select name="holdingKind" id="holdingKind" required>
-              <option value="asset">자산</option>
-              <option value="liability">부채</option>
-            </select>
-          </label>
-          <label>
-            <span>카테고리</span>
-            <select name="holdingCategory" id="holdingCategory" required></select>
-          </label>
+        <div class="summary-card rate">
+          <span class="label">저축률</span>
+          <span class="amount" id="savingsRate">--</span>
         </div>
-        <div class="form-row">
-          <label>
-            <span>이름</span>
-            <input type="text" name="holdingName" id="holdingName" placeholder="예: 국민은행 통장" maxlength="40" required />
+      </section>
+
+      <section class="panel">
+        <h2>거래 추가</h2>
+        <form id="txForm" class="tx-form">
+          <div class="form-row">
+            <label>
+              <span>유형</span>
+              <select name="type" id="type" required>
+                <option value="expense">지출</option>
+                <option value="income">수입</option>
+              </select>
+            </label>
+            <label>
+              <span>날짜</span>
+              <input type="date" name="date" id="date" required />
+            </label>
+          </div>
+          <div class="form-row">
+            <label>
+              <span>카테고리</span>
+              <select name="category" id="category" required></select>
+            </label>
+            <label>
+              <span>금액 (원)</span>
+              <input type="number" name="amount" id="amount" min="0" step="1" placeholder="0" required />
+            </label>
+          </div>
+          <label class="full">
+            <span>메모 (선택)</span>
+            <input type="text" name="memo" id="memo" placeholder="예: 점심 식사" maxlength="60" />
           </label>
-          <label>
-            <span>금액 (원)</span>
-            <input type="number" name="holdingAmount" id="holdingAmount" min="0" step="1" placeholder="0" required />
-          </label>
+          <button type="submit" class="primary">추가하기</button>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>거래 내역</h2>
+          <div class="filters">
+            <label>
+              월 선택
+              <input type="month" id="monthFilter" />
+            </label>
+            <button type="button" id="clearMonth" class="ghost">전체 보기</button>
+          </div>
         </div>
-        <button type="submit" class="primary">항목 추가</button>
-      </form>
+        <ul id="txList" class="tx-list"></ul>
+        <p id="emptyMsg" class="empty">아직 등록된 거래가 없어요.</p>
+      </section>
 
-      <ul id="holdingList" class="tx-list holdings-list"></ul>
-      <p id="holdingEmpty" class="empty">등록된 자산/부채 항목이 없어요.</p>
-    </section>
+      <section class="panel">
+        <h2>카테고리별 지출</h2>
+        <ul id="categoryBreakdown" class="breakdown"></ul>
+        <p id="breakdownEmpty" class="empty">이번 달 지출 내역이 없어요.</p>
+      </section>
 
-    <section class="panel">
-      <div class="panel-header">
-        <h2>순자산 추이</h2>
-        <div class="filters">
-          <button type="button" id="saveSnapshotBtn" class="primary">이번 달 스냅샷 저장</button>
-          <button type="button" id="deleteSnapshotBtn" class="ghost">이번 달 삭제</button>
+      <section class="panel">
+        <h2>월별 수입·지출</h2>
+        <ul id="monthlyOverview" class="monthly-overview"></ul>
+        <p id="monthlyOverviewEmpty" class="empty">아직 월별 내역이 없어요.</p>
+      </section>
+    </div>
+
+    <!-- 자산 탭 -->
+    <div class="tab-panel" data-tab-panel="assets" hidden>
+      <section class="panel">
+        <h2>자산 현황</h2>
+        <div class="summary holdings-summary">
+          <div class="summary-card income">
+            <span class="label">총자산</span>
+            <span class="amount" id="totalAssets">0원</span>
+          </div>
+          <div class="summary-card expense">
+            <span class="label">총부채</span>
+            <span class="amount" id="totalLiabilities">0원</span>
+          </div>
+          <div class="summary-card balance">
+            <span class="label">순자산</span>
+            <span class="amount" id="netWorth">0원</span>
+          </div>
         </div>
-      </div>
-      <ul id="historyList" class="breakdown history-list"></ul>
-      <p id="historyEmpty" class="empty">저장된 스냅샷이 없어요. 이번 달 순자산을 저장해 보세요.</p>
-    </section>
 
-    <section class="panel danger-zone">
-      <h2>데이터 관리</h2>
-      <div class="danger-actions">
-        <button type="button" id="exportBtn" class="ghost">JSON으로 내보내기</button>
-        <button type="button" id="resetBtn" class="danger">모든 데이터 삭제</button>
-      </div>
-    </section>
+        <form id="holdingForm" class="tx-form">
+          <div class="form-row">
+            <label>
+              <span>유형</span>
+              <select name="holdingKind" id="holdingKind" required>
+                <option value="asset">자산</option>
+                <option value="liability">부채</option>
+              </select>
+            </label>
+            <label>
+              <span>카테고리</span>
+              <select name="holdingCategory" id="holdingCategory" required></select>
+            </label>
+          </div>
+          <div class="form-row">
+            <label>
+              <span>이름</span>
+              <input type="text" name="holdingName" id="holdingName" placeholder="예: 국민은행 통장" maxlength="40" required />
+            </label>
+            <label>
+              <span>금액 (원)</span>
+              <input type="number" name="holdingAmount" id="holdingAmount" min="0" step="1" placeholder="0" required />
+            </label>
+          </div>
+          <button type="submit" class="primary">항목 추가</button>
+        </form>
+
+        <ul id="holdingList" class="tx-list holdings-list"></ul>
+        <p id="holdingEmpty" class="empty">등록된 자산/부채 항목이 없어요.</p>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2>순자산 추이</h2>
+          <div class="filters">
+            <button type="button" id="saveSnapshotBtn" class="primary">이번 달 스냅샷 저장</button>
+            <button type="button" id="deleteSnapshotBtn" class="ghost">이번 달 삭제</button>
+          </div>
+        </div>
+        <ul id="historyList" class="breakdown history-list"></ul>
+        <p id="historyEmpty" class="empty">저장된 스냅샷이 없어요. 이번 달 순자산을 저장해 보세요.</p>
+      </section>
+    </div>
+
+    <!-- 목표 탭 -->
+    <div class="tab-panel" data-tab-panel="goals" hidden>
+      <section class="panel">
+        <div class="panel-header">
+          <h2>연간 저축 목표</h2>
+          <div class="filters">
+            <label>
+              연도
+              <select id="goalYear"></select>
+            </label>
+          </div>
+        </div>
+
+        <form id="goalForm" class="tx-form">
+          <div class="form-row">
+            <label>
+              <span>목표 금액 (원)</span>
+              <input type="number" id="goalAmount" min="0" step="10000" placeholder="예: 12000000" />
+            </label>
+            <label>
+              <span>&nbsp;</span>
+              <button type="submit" class="primary">목표 저장</button>
+            </label>
+          </div>
+        </form>
+
+        <div class="goal-progress">
+          <div class="goal-stats">
+            <div class="goal-stat">
+              <span class="label">누적 저축</span>
+              <span class="amount" id="goalAccumulated">0원</span>
+            </div>
+            <div class="goal-stat">
+              <span class="label">목표</span>
+              <span class="amount" id="goalTarget">0원</span>
+            </div>
+            <div class="goal-stat">
+              <span class="label">남은 금액</span>
+              <span class="amount" id="goalRemaining">0원</span>
+            </div>
+            <div class="goal-stat">
+              <span class="label">달성률</span>
+              <span class="amount" id="goalPercent">--</span>
+            </div>
+          </div>
+          <div class="goal-bar">
+            <span id="goalBarFill"></span>
+          </div>
+          <p class="goal-hint" id="goalHint">목표 금액을 입력하면 달성률이 표시됩니다.</p>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>월별 저축률</h2>
+        <ul id="savingsRateList" class="monthly-overview"></ul>
+        <p id="savingsRateEmpty" class="empty">저축률을 계산할 내역이 없어요.</p>
+      </section>
+
+      <section class="panel danger-zone">
+        <h2>데이터 관리</h2>
+        <div class="danger-actions">
+          <button type="button" id="exportBtn" class="ghost">JSON으로 내보내기</button>
+          <button type="button" id="resetBtn" class="danger">모든 데이터 삭제</button>
+        </div>
+      </section>
+    </div>
   </main>
 
   <footer class="app-footer">

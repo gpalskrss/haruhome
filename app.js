@@ -85,6 +85,8 @@ const firebaseDb = getFirestore(firebaseApp);
     totalIncome: $("totalIncome"),
     totalExpense: $("totalExpense"),
     balance: $("balance"),
+    incomeDelta: $("incomeDelta"),
+    expenseDelta: $("expenseDelta"),
     monthFilter: $("monthFilter"),
     clearMonth: $("clearMonth"),
     breakdown: $("categoryBreakdown"),
@@ -316,6 +318,11 @@ const firebaseDb = getFirestore(firebaseApp);
     els.balance.textContent = formatWon(income - expense);
     els.savingsRate.textContent = formatSavingsRate(income, expense);
 
+    const prevMonthStr = prevMonthOf(monthForSummary);
+    const prev = computeMonthTotals(prevMonthStr);
+    setDelta(els.incomeDelta, income, prev.income, "income", prevMonthStr);
+    setDelta(els.expenseDelta, expense, prev.expense, "expense", prevMonthStr);
+
     const list = getFilteredTransactions();
     els.list.innerHTML = "";
     if (list.length === 0) {
@@ -370,6 +377,62 @@ const firebaseDb = getFirestore(firebaseApp);
     if (income <= 0) return "--";
     const rate = ((income - expense) / income) * 100;
     return `${rate.toFixed(1)}%`;
+  }
+
+  function prevMonthOf(monthStr) {
+    const [y, m] = monthStr.split("-").map(Number);
+    const d = new Date(y, m - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  function computeMonthTotals(monthStr) {
+    let income = 0;
+    let expense = 0;
+    transactions.forEach((t) => {
+      if (!t.date || !t.date.startsWith(monthStr)) return;
+      if (t.type === "income") income += t.amount;
+      else if (t.type === "expense") expense += t.amount;
+    });
+    return { income, expense };
+  }
+
+  function setDelta(el, current, prev, kind, prevLabel) {
+    if (!el) return;
+    el.classList.remove("up-good", "up-bad", "down-good", "down-bad", "neutral");
+
+    if (prev === 0 && current === 0) {
+      el.textContent = "지난달 내역 없음";
+      el.classList.add("neutral");
+      return;
+    }
+    if (prev === 0) {
+      el.textContent = `지난달 없음 · 이번달 신규`;
+      el.classList.add("neutral");
+      return;
+    }
+
+    const diff = current - prev;
+    const absDiff = Math.abs(diff);
+    const pct = Math.abs((diff / prev) * 100);
+    const pctStr = pct >= 10 ? pct.toFixed(0) : pct.toFixed(1);
+
+    if (diff === 0) {
+      el.textContent = `지난달과 동일`;
+      el.classList.add("neutral");
+      return;
+    }
+
+    const arrow = diff > 0 ? "▲" : "▼";
+    const verb = diff > 0 ? "더" : "덜";
+    const action = kind === "income" ? "벌었어요" : "썼어요";
+    el.textContent = `${arrow} 지난달보다 ${formatWon(absDiff)} ${verb} ${action} (${pctStr}%)`;
+
+    // 색상: 수입은 증가=좋음(초록)·감소=나쁨(빨강); 지출은 반대
+    if (kind === "income") {
+      el.classList.add(diff > 0 ? "up-good" : "down-bad");
+    } else {
+      el.classList.add(diff > 0 ? "up-bad" : "down-good");
+    }
   }
 
   function computeMonthlyTotals() {

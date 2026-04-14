@@ -198,6 +198,19 @@ body {
 .summary-card.expense .amount { color: var(--expense); }
 .summary-card.balance .amount { color: var(--balance); }
 
+.summary-delta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+.summary-delta.up-good { color: var(--income); }
+.summary-delta.up-bad { color: var(--expense); }
+.summary-delta.down-good { color: var(--income); }
+.summary-delta.down-bad { color: var(--expense); }
+.summary-delta.neutral { color: var(--muted); }
+
 .panel {
   background: var(--surface);
   border-radius: 14px;

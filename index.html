@@ -28,6 +28,7 @@
     <button type="button" class="tab-btn" role="tab" data-tab="transactions">거래</button>
     <button type="button" class="tab-btn" role="tab" data-tab="assets">자산</button>
     <button type="button" class="tab-btn" role="tab" data-tab="goals">목표</button>
+    <button type="button" class="tab-btn" role="tab" data-tab="calendar">일정</button>
   </nav>
 
   <main class="container">
@@ -248,6 +249,75 @@
           <button type="button" id="exportBtn" class="ghost">JSON으로 내보내기</button>
           <button type="button" id="resetBtn" class="danger">모든 데이터 삭제</button>
         </div>
+      </section>
+    </div>
+
+    <!-- 일정 탭 -->
+    <div class="tab-panel" data-tab-panel="calendar" hidden>
+      <section class="panel">
+        <div class="calendar-header">
+          <button type="button" id="calPrev" class="ghost calendar-nav" aria-label="이전 달">‹</button>
+          <h2 id="calTitle">0000년 0월</h2>
+          <button type="button" id="calNext" class="ghost calendar-nav" aria-label="다음 달">›</button>
+          <button type="button" id="calToday" class="ghost calendar-today">오늘</button>
+        </div>
+        <div class="calendar-weekdays">
+          <span class="sun">일</span>
+          <span>월</span>
+          <span>화</span>
+          <span>수</span>
+          <span>목</span>
+          <span>금</span>
+          <span class="sat">토</span>
+        </div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <h2 id="eventListTitle">날짜를 선택하세요</h2>
+        </div>
+
+        <form id="eventForm" class="tx-form">
+          <div class="form-row">
+            <label>
+              <span>날짜</span>
+              <input type="date" id="eventDate" required />
+            </label>
+            <label>
+              <span>카테고리</span>
+              <select id="eventCategory" required>
+                <option value="생일">생일</option>
+                <option value="기념일">기념일</option>
+                <option value="약속">약속</option>
+                <option value="업무">업무</option>
+                <option value="기타">기타</option>
+              </select>
+            </label>
+          </div>
+          <div class="form-row">
+            <label>
+              <span>제목</span>
+              <input type="text" id="eventTitle" placeholder="예: 엄마 생신" maxlength="40" required />
+            </label>
+            <label>
+              <span>시간 (선택)</span>
+              <input type="time" id="eventTime" />
+            </label>
+          </div>
+          <label class="full">
+            <span>메모 (선택)</span>
+            <input type="text" id="eventMemo" placeholder="예: 선물 준비" maxlength="80" />
+          </label>
+          <label class="checkbox-row">
+            <input type="checkbox" id="eventRepeat" />
+            <span>매년 반복 (기념일/생일 추천)</span>
+          </label>
+          <button type="submit" class="primary">일정 추가</button>
+        </form>
+
+        <ul id="eventList" class="tx-list"></ul>
+        <p id="eventEmpty" class="empty">선택한 날짜에 일정이 없어요.</p>
       </section>
     </div>
   </main>

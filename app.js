@@ -34,6 +34,7 @@ const firebaseDb = getFirestore(firebaseApp);
   const HOLDINGS_KEY = "haruhome.holdings.v1";
   const HISTORY_KEY = "haruhome.netWorthHistory.v1";
   const GOALS_KEY = "haruhome.goals.v1";
+  const EVENTS_KEY = "haruhome.events.v1";
   const UI_KEY = "haruhome.ui.v1";
 
   const CATEGORIES = {
@@ -125,6 +126,21 @@ const firebaseDb = getFirestore(firebaseApp);
     userAvatar: $("userAvatar"),
     userEmail: $("userEmail"),
     syncStatus: $("syncStatus"),
+    calPrev: $("calPrev"),
+    calNext: $("calNext"),
+    calToday: $("calToday"),
+    calTitle: $("calTitle"),
+    calendarGrid: $("calendarGrid"),
+    eventListTitle: $("eventListTitle"),
+    eventForm: $("eventForm"),
+    eventDate: $("eventDate"),
+    eventCategory: $("eventCategory"),
+    eventTitle: $("eventTitle"),
+    eventTime: $("eventTime"),
+    eventMemo: $("eventMemo"),
+    eventRepeat: $("eventRepeat"),
+    eventList: $("eventList"),
+    eventEmpty: $("eventEmpty"),
   };
 
   let currentUser = null;
@@ -193,6 +209,15 @@ const firebaseDb = getFirestore(firebaseApp);
     schedulePush();
   }
 
+  function loadEvents() {
+    return loadArray(EVENTS_KEY);
+  }
+
+  function saveEvents(items) {
+    localStorage.setItem(EVENTS_KEY, JSON.stringify(items));
+    schedulePush();
+  }
+
   function loadUIState() {
     try {
       const raw = localStorage.getItem(UI_KEY);
@@ -212,7 +237,10 @@ const firebaseDb = getFirestore(firebaseApp);
   let holdings = loadHoldings();
   let history = loadHistory();
   let goals = loadGoals();
+  let events = loadEvents();
   let uiState = loadUIState();
+  let calendarViewMonth = null; // "YYYY-MM"
+  let selectedDate = null; // "YYYY-MM-DD"
 
   function todayISO() {
     const d = new Date();
@@ -312,6 +340,7 @@ const firebaseDb = getFirestore(firebaseApp);
     renderNetWorthHistory();
     renderGoalProgress();
     renderSavingsRateList();
+    renderCalendar();
   }
 
   function formatSavingsRate(income, expense) {
@@ -946,15 +975,17 @@ const firebaseDb = getFirestore(firebaseApp);
   }
 
   function resetAll() {
-    if (!confirm("거래 · 자산 · 추이 · 목표 데이터를 모두 영구 삭제합니다. 계속할까요?")) return;
+    if (!confirm("거래 · 자산 · 추이 · 목표 · 일정 데이터를 모두 영구 삭제합니다. 계속할까요?")) return;
     transactions = [];
     holdings = [];
     history = [];
     goals = {};
+    events = [];
     saveTransactions(transactions);
     saveHoldings(holdings);
     saveHistory(history);
     saveGoals(goals);
+    saveEvents(events);
     render();
   }
 
@@ -965,6 +996,7 @@ const firebaseDb = getFirestore(firebaseApp);
       holdings,
       netWorthHistory: history,
       goals,
+      events,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json",
@@ -992,10 +1024,12 @@ const firebaseDb = getFirestore(firebaseApp);
       holdings = Array.isArray(data.holdings) ? data.holdings : [];
       history = Array.isArray(data.netWorthHistory) ? data.netWorthHistory : [];
       goals = data.goals && typeof data.goals === "object" ? data.goals : {};
+      events = Array.isArray(data.events) ? data.events : [];
       localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
       localStorage.setItem(HOLDINGS_KEY, JSON.stringify(holdings));
       localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
       localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
+      localStorage.setItem(EVENTS_KEY, JSON.stringify(events));
       render();
     } finally {
       applyingRemote = false;
@@ -1016,6 +1050,7 @@ const firebaseDb = getFirestore(firebaseApp);
         holdings,
         netWorthHistory: history,
         goals,
+        events,
         updatedAt: new Date().toISOString(),
       });
       setSyncStatus("동기화됨", "synced");
@@ -1097,6 +1132,250 @@ const firebaseDb = getFirestore(firebaseApp);
     }
   }
 
+  // ========== 일정 / 캘린더 ==========
+
+  function getEventsForDate(dateISO) {
+    const [y, m, d] = dateISO.split("-");
+    const mmdd = `${m}-${d}`;
+    return events.filter((e) => {
+      if (!e || !e.date) return false;
+      if (e.date === dateISO) return true;
+      if (e.repeat === "yearly" && e.date.slice(5) === mmdd && e.date <= dateISO) {
+        return true;
+      }
+      return false;
+    });
+  }
+
+  function renderCalendar() {
+    if (!calendarViewMonth) calendarViewMonth = currentMonth();
+    const [yearStr, monthStr] = calendarViewMonth.split("-");
+    const year = Number(yearStr);
+    const month = Number(monthStr); // 1-12
+
+    els.calTitle.textContent = `${year}년 ${month}월`;
+
+    const firstDay = new Date(year, month - 1, 1);
+    const startWeekday = firstDay.getDay(); // 0=Sun
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const daysInPrevMonth = new Date(year, month - 1, 0).getDate();
+
+    els.calendarGrid.innerHTML = "";
+
+    const totalCells = Math.ceil((startWeekday + daysInMonth) / 7) * 7;
+    const today = todayISO();
+
+    for (let i = 0; i < totalCells; i++) {
+      const cellDayOffset = i - startWeekday;
+      let cellYear = year;
+      let cellMonth = month;
+      let cellDay;
+      let otherMonth = false;
+
+      if (cellDayOffset < 0) {
+        cellDay = daysInPrevMonth + cellDayOffset + 1;
+        cellMonth = month - 1;
+        if (cellMonth < 1) {
+          cellMonth = 12;
+          cellYear = year - 1;
+        }
+        otherMonth = true;
+      } else if (cellDayOffset >= daysInMonth) {
+        cellDay = cellDayOffset - daysInMonth + 1;
+        cellMonth = month + 1;
+        if (cellMonth > 12) {
+          cellMonth = 1;
+          cellYear = year + 1;
+        }
+        otherMonth = true;
+      } else {
+        cellDay = cellDayOffset + 1;
+      }
+
+      const cellDate = `${cellYear}-${String(cellMonth).padStart(2, "0")}-${String(cellDay).padStart(2, "0")}`;
+      const weekday = i % 7;
+
+      const cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "cal-day";
+      if (otherMonth) cell.classList.add("other-month");
+      if (weekday === 0) cell.classList.add("sunday");
+      if (weekday === 6) cell.classList.add("saturday");
+      if (cellDate === today) cell.classList.add("today");
+      if (cellDate === selectedDate) cell.classList.add("selected");
+      cell.dataset.date = cellDate;
+
+      const num = document.createElement("span");
+      num.className = "day-num";
+      num.textContent = String(cellDay);
+      cell.appendChild(num);
+
+      const evs = getEventsForDate(cellDate);
+      if (evs.length > 0) {
+        const evContainer = document.createElement("div");
+        evContainer.className = "day-events";
+        const shown = evs.slice(0, 2);
+        shown.forEach((e) => {
+          const chip = document.createElement("span");
+          chip.className = `cal-chip ${e.category || "기타"}`;
+          chip.textContent = e.title;
+          evContainer.appendChild(chip);
+        });
+        if (evs.length > shown.length) {
+          const more = document.createElement("span");
+          more.className = "cal-more";
+          more.textContent = `+${evs.length - shown.length}`;
+          evContainer.appendChild(more);
+        }
+        cell.appendChild(evContainer);
+      }
+
+      cell.addEventListener("click", () => selectDate(cellDate));
+      els.calendarGrid.appendChild(cell);
+    }
+
+    renderEventList();
+  }
+
+  function selectDate(dateISO) {
+    selectedDate = dateISO;
+    els.eventDate.value = dateISO;
+    // If clicked date is in a different month, switch the view
+    const clickedMonth = dateISO.slice(0, 7);
+    if (clickedMonth !== calendarViewMonth) {
+      calendarViewMonth = clickedMonth;
+    }
+    renderCalendar();
+  }
+
+  function renderEventList() {
+    els.eventList.innerHTML = "";
+    if (!selectedDate) {
+      els.eventListTitle.textContent = "날짜를 선택하세요";
+      els.eventEmpty.classList.add("hidden");
+      return;
+    }
+
+    const [y, m, d] = selectedDate.split("-");
+    els.eventListTitle.textContent = `${Number(y)}년 ${Number(m)}월 ${Number(d)}일`;
+
+    const evs = getEventsForDate(selectedDate)
+      .slice()
+      .sort((a, b) => {
+        if (a.time && b.time) return a.time < b.time ? -1 : 1;
+        if (a.time) return -1;
+        if (b.time) return 1;
+        return 0;
+      });
+
+    if (evs.length === 0) {
+      els.eventEmpty.classList.remove("hidden");
+      return;
+    }
+    els.eventEmpty.classList.add("hidden");
+
+    const currentYear = Number(selectedDate.slice(0, 4));
+
+    evs.forEach((e) => {
+      const li = document.createElement("li");
+      li.className = "tx-item";
+
+      const info = document.createElement("div");
+      info.className = "tx-info";
+
+      const title = document.createElement("span");
+      title.className = "tx-title";
+      const tag = document.createElement("span");
+      tag.className = `event-category-tag ${e.category || "기타"}`;
+      tag.textContent = e.category || "기타";
+      title.appendChild(tag);
+      title.append(e.title);
+      if (e.repeat === "yearly") {
+        const originalYear = Number(e.date.slice(0, 4));
+        const diff = currentYear - originalYear;
+        const badge = document.createElement("span");
+        badge.className = "event-repeat-badge";
+        badge.textContent = diff > 0 ? `${diff}주년 · 매년` : "매년";
+        title.appendChild(badge);
+      }
+
+      const meta = document.createElement("span");
+      meta.className = "tx-meta";
+      const parts = [];
+      if (e.time) parts.push(e.time);
+      if (e.memo) parts.push(e.memo);
+      meta.textContent = parts.join(" · ") || "—";
+
+      info.appendChild(title);
+      info.appendChild(meta);
+
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "tx-delete";
+      del.setAttribute("aria-label", "삭제");
+      del.textContent = "✕";
+      del.addEventListener("click", () => deleteEvent(e.id));
+
+      li.appendChild(info);
+      li.appendChild(document.createElement("span")); // spacer
+      li.appendChild(del);
+      els.eventList.appendChild(li);
+    });
+  }
+
+  function addEvent(e) {
+    e.preventDefault();
+    const date = els.eventDate.value;
+    const title = els.eventTitle.value.trim();
+    const category = els.eventCategory.value;
+    const time = els.eventTime.value || "";
+    const memo = els.eventMemo.value.trim();
+    const repeat = els.eventRepeat.checked ? "yearly" : "none";
+
+    if (!date || !title) {
+      alert("날짜와 제목을 입력해 주세요.");
+      return;
+    }
+
+    events.push({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      date,
+      title,
+      category,
+      time,
+      memo,
+      repeat,
+      createdAt: Date.now(),
+    });
+    saveEvents(events);
+
+    els.eventTitle.value = "";
+    els.eventTime.value = "";
+    els.eventMemo.value = "";
+    els.eventRepeat.checked = false;
+
+    selectedDate = date;
+    calendarViewMonth = date.slice(0, 7);
+    renderCalendar();
+  }
+
+  function deleteEvent(id) {
+    const ev = events.find((e) => e.id === id);
+    if (!ev) return;
+    if (!confirm(`"${ev.title}" 일정을 삭제할까요?`)) return;
+    events = events.filter((e) => e.id !== id);
+    saveEvents(events);
+    renderCalendar();
+  }
+
+  function shiftMonth(delta) {
+    if (!calendarViewMonth) calendarViewMonth = currentMonth();
+    const [y, m] = calendarViewMonth.split("-").map(Number);
+    const d = new Date(y, m - 1 + delta, 1);
+    calendarViewMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    renderCalendar();
+  }
+
   function init() {
     els.date.value = todayISO();
     els.monthFilter.value = currentMonth();
@@ -1133,6 +1412,18 @@ const firebaseDb = getFirestore(firebaseApp);
     els.signInBtn.addEventListener("click", handleSignIn);
     els.signOutBtn.addEventListener("click", handleSignOut);
     onAuthStateChanged(firebaseAuth, handleAuthChange);
+
+    els.calPrev.addEventListener("click", () => shiftMonth(-1));
+    els.calNext.addEventListener("click", () => shiftMonth(1));
+    els.calToday.addEventListener("click", () => {
+      calendarViewMonth = currentMonth();
+      selectDate(todayISO());
+    });
+    els.eventForm.addEventListener("submit", addEvent);
+
+    calendarViewMonth = currentMonth();
+    selectedDate = todayISO();
+    els.eventDate.value = selectedDate;
 
     render();
   }

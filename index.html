@@ -85,7 +85,10 @@
             <span>메모 (선택)</span>
             <input type="text" name="memo" id="memo" placeholder="예: 점심 식사" maxlength="60" />
           </label>
-          <button type="submit" class="primary">추가하기</button>
+          <div class="form-actions">
+            <button type="submit" id="txSubmitBtn" class="primary">추가하기</button>
+            <button type="button" id="txCancelBtn" class="ghost" hidden>취소</button>
+          </div>
         </form>
       </section>
 

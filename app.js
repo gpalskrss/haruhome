@@ -82,6 +82,8 @@ const firebaseDb = getFirestore(firebaseApp);
     memo: $("memo"),
     list: $("txList"),
     emptyMsg: $("emptyMsg"),
+    txSubmitBtn: $("txSubmitBtn"),
+    txCancelBtn: $("txCancelBtn"),
     totalIncome: $("totalIncome"),
     totalExpense: $("totalExpense"),
     balance: $("balance"),
@@ -266,6 +268,7 @@ const firebaseDb = getFirestore(firebaseApp);
   let calendarViewMonth = null; // "YYYY-MM"
   let selectedDate = null; // "YYYY-MM-DD"
   let editingEventId = null;
+  let editingTxId = null;
 
   function todayISO() {
     const d = new Date();
@@ -350,6 +353,12 @@ const firebaseDb = getFirestore(firebaseApp);
         amount.className = `tx-amount ${tx.type}`;
         amount.textContent = `${tx.type === "income" ? "+" : "-"}${formatWon(tx.amount)}`;
 
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.className = "tx-edit";
+        edit.textContent = "수정";
+        edit.addEventListener("click", () => startEditTx(tx));
+
         const del = document.createElement("button");
         del.type = "button";
         del.className = "tx-delete";
@@ -359,6 +368,7 @@ const firebaseDb = getFirestore(firebaseApp);
 
         li.appendChild(info);
         li.appendChild(amount);
+        li.appendChild(edit);
         li.appendChild(del);
         els.list.appendChild(li);
       });
@@ -1034,21 +1044,63 @@ const firebaseDb = getFirestore(firebaseApp);
       return;
     }
 
-    const tx = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      type,
-      date,
-      category,
-      amount,
-      memo,
-      createdAt: Date.now(),
-    };
-    transactions.push(tx);
+    if (editingTxId) {
+      const idx = transactions.findIndex((t) => t.id === editingTxId);
+      if (idx >= 0) {
+        transactions[idx] = {
+          ...transactions[idx],
+          type,
+          date,
+          category,
+          amount,
+          memo,
+          updatedAt: Date.now(),
+        };
+      }
+      editingTxId = null;
+    } else {
+      transactions.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type,
+        date,
+        category,
+        amount,
+        memo,
+        createdAt: Date.now(),
+      });
+    }
     saveTransactions(transactions);
 
+    resetTxForm();
+    render();
+  }
+
+  function startEditTx(tx) {
+    editingTxId = tx.id;
+    els.type.value = tx.type;
+    populateCategories();
+    els.category.value = tx.category;
+    els.date.value = tx.date;
+    els.amount.value = String(tx.amount);
+    els.memo.value = tx.memo || "";
+    els.txSubmitBtn.textContent = "거래 수정";
+    els.txCancelBtn.hidden = false;
+    els.form.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function resetTxForm() {
+    editingTxId = null;
     els.amount.value = "";
     els.memo.value = "";
-    render();
+    els.txSubmitBtn.textContent = "추가하기";
+    els.txCancelBtn.hidden = true;
+  }
+
+  function cancelEditTx() {
+    resetTxForm();
+    els.date.value = todayISO();
+    els.type.value = "expense";
+    populateCategories();
   }
 
   function deleteTx(id) {
@@ -1945,8 +1997,17 @@ const firebaseDb = getFirestore(firebaseApp);
     els.monthFilter.value = currentMonth();
     populateCategories();
 
-    els.type.addEventListener("change", populateCategories);
+    els.type.addEventListener("change", () => {
+      const prev = els.category.value;
+      populateCategories();
+      // 수정 중이라면 원래 카테고리가 새 리스트에 있으면 유지
+      if (editingTxId) {
+        const matching = Array.from(els.category.options).find((o) => o.value === prev);
+        if (matching) els.category.value = prev;
+      }
+    });
     els.form.addEventListener("submit", addTx);
+    els.txCancelBtn.addEventListener("click", cancelEditTx);
     els.monthFilter.addEventListener("change", render);
     els.clearMonth.addEventListener("click", () => {
       els.monthFilter.value = "";

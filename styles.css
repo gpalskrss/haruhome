@@ -340,11 +340,15 @@ button:active { transform: translateY(1px); }
 
 .tx-item {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: 12px;
   padding: 12px 4px;
   border-bottom: 1px solid var(--border);
+}
+
+#eventList .tx-item {
+  grid-template-columns: 1fr auto auto;
 }
 
 .tx-item:last-child { border-bottom: none; }

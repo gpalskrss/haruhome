@@ -52,6 +52,69 @@ body {
   gap: 20px;
 }
 
+.auth-bar {
+  max-width: 720px;
+  margin: 0 auto 12px;
+  padding: 0 20px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
+.auth-btn {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+}
+
+.auth-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--border);
+}
+
+.auth-user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.user-email {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-status {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.sync-status.synced { color: var(--income); }
+.sync-status.syncing { color: var(--primary); }
+.sync-status.error { color: var(--expense); }
+
+@media (max-width: 520px) {
+  .user-email { max-width: 120px; }
+  .auth-bar { padding: 0 12px; }
+}
+
 .tabs {
   max-width: 720px;
   margin: 0 auto;

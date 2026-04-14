@@ -1,3 +1,32 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+  onSnapshot,
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBEdG4qnNe-4ovgq832iKqscBfpdeO06qQ",
+  authDomain: "haruhome-7a6e4.firebaseapp.com",
+  projectId: "haruhome-7a6e4",
+  storageBucket: "haruhome-7a6e4.firebasestorage.app",
+  messagingSenderId: "308620007934",
+  appId: "1:308620007934:web:6c995dfa3e2465cd6548af",
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const firebaseAuth = getAuth(firebaseApp);
+const firebaseDb = getFirestore(firebaseApp);
+
 (function () {
   "use strict";
 
@@ -90,7 +119,18 @@
     savingsRateEmpty: $("savingsRateEmpty"),
     tabs: document.querySelectorAll(".tab-btn"),
     tabPanels: document.querySelectorAll(".tab-panel"),
+    signInBtn: $("signInBtn"),
+    signOutBtn: $("signOutBtn"),
+    authSignedIn: $("authSignedIn"),
+    userAvatar: $("userAvatar"),
+    userEmail: $("userEmail"),
+    syncStatus: $("syncStatus"),
   };
+
+  let currentUser = null;
+  let unsubscribeSnapshot = null;
+  let pushTimer = null;
+  let applyingRemote = false;
 
   function loadTransactions() {
     try {
@@ -105,6 +145,7 @@
 
   function saveTransactions(txs) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(txs));
+    schedulePush();
   }
 
   function loadArray(key) {
@@ -124,6 +165,7 @@
 
   function saveHoldings(items) {
     localStorage.setItem(HOLDINGS_KEY, JSON.stringify(items));
+    schedulePush();
   }
 
   function loadHistory() {
@@ -132,6 +174,7 @@
 
   function saveHistory(items) {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(items));
+    schedulePush();
   }
 
   function loadGoals() {
@@ -147,6 +190,7 @@
 
   function saveGoals(obj) {
     localStorage.setItem(GOALS_KEY, JSON.stringify(obj));
+    schedulePush();
   }
 
   function loadUIState() {
@@ -935,6 +979,124 @@
     URL.revokeObjectURL(url);
   }
 
+  function setSyncStatus(text, state) {
+    els.syncStatus.textContent = text;
+    els.syncStatus.classList.remove("synced", "syncing", "error");
+    if (state) els.syncStatus.classList.add(state);
+  }
+
+  function applyRemoteData(data) {
+    applyingRemote = true;
+    try {
+      transactions = Array.isArray(data.transactions) ? data.transactions : [];
+      holdings = Array.isArray(data.holdings) ? data.holdings : [];
+      history = Array.isArray(data.netWorthHistory) ? data.netWorthHistory : [];
+      goals = data.goals && typeof data.goals === "object" ? data.goals : {};
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+      localStorage.setItem(HOLDINGS_KEY, JSON.stringify(holdings));
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+      localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
+      render();
+    } finally {
+      applyingRemote = false;
+    }
+  }
+
+  function schedulePush() {
+    if (!currentUser || applyingRemote) return;
+    if (pushTimer) clearTimeout(pushTimer);
+    setSyncStatus("저장 중…", "syncing");
+    pushTimer = setTimeout(() => pushNow(currentUser.uid), 400);
+  }
+
+  async function pushNow(uid) {
+    try {
+      await setDoc(doc(firebaseDb, "userData", uid), {
+        transactions,
+        holdings,
+        netWorthHistory: history,
+        goals,
+        updatedAt: new Date().toISOString(),
+      });
+      setSyncStatus("동기화됨", "synced");
+    } catch (e) {
+      console.error("Cloud sync failed:", e);
+      setSyncStatus("저장 실패", "error");
+    }
+  }
+
+  async function subscribeUserData(uid) {
+    if (unsubscribeSnapshot) {
+      unsubscribeSnapshot();
+      unsubscribeSnapshot = null;
+    }
+    setSyncStatus("동기화 중…", "syncing");
+    const ref = doc(firebaseDb, "userData", uid);
+    try {
+      const snap = await getDoc(ref);
+      if (!snap.exists()) {
+        await pushNow(uid);
+      } else {
+        applyRemoteData(snap.data());
+        setSyncStatus("동기화됨", "synced");
+      }
+    } catch (e) {
+      console.error(e);
+      setSyncStatus("동기화 실패", "error");
+      return;
+    }
+    unsubscribeSnapshot = onSnapshot(
+      ref,
+      (s) => {
+        if (!s.exists()) return;
+        if (s.metadata.hasPendingWrites) return;
+        applyRemoteData(s.data());
+        setSyncStatus("동기화됨", "synced");
+      },
+      (err) => {
+        console.error(err);
+        setSyncStatus("연결 오류", "error");
+      }
+    );
+  }
+
+  function handleAuthChange(user) {
+    currentUser = user;
+    if (user) {
+      els.signInBtn.hidden = true;
+      els.authSignedIn.hidden = false;
+      els.userEmail.textContent = user.displayName || user.email || "사용자";
+      if (user.photoURL) els.userAvatar.src = user.photoURL;
+      else els.userAvatar.removeAttribute("src");
+      subscribeUserData(user.uid);
+    } else {
+      els.signInBtn.hidden = false;
+      els.authSignedIn.hidden = true;
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+      }
+      setSyncStatus("", null);
+    }
+  }
+
+  async function handleSignIn() {
+    try {
+      await signInWithPopup(firebaseAuth, new GoogleAuthProvider());
+    } catch (e) {
+      console.error(e);
+      alert("로그인 실패: " + (e.message || e.code || ""));
+    }
+  }
+
+  async function handleSignOut() {
+    try {
+      await signOut(firebaseAuth);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   function init() {
     els.date.value = todayISO();
     els.monthFilter.value = currentMonth();
@@ -967,6 +1129,10 @@
       renderGoalProgress();
     });
     els.goalForm.addEventListener("submit", saveGoal);
+
+    els.signInBtn.addEventListener("click", handleSignIn);
+    els.signOutBtn.addEventListener("click", handleSignOut);
+    onAuthStateChanged(firebaseAuth, handleAuthChange);
 
     render();
   }

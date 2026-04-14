@@ -12,6 +12,18 @@
     <p class="subtitle">매일의 수입과 지출을 간편하게 기록하세요</p>
   </header>
 
+  <div class="auth-bar">
+    <button type="button" id="signInBtn" class="primary auth-btn">Google로 로그인 (기기 간 동기화)</button>
+    <div id="authSignedIn" class="auth-user" hidden>
+      <img id="userAvatar" class="user-avatar" alt="" referrerpolicy="no-referrer" />
+      <div class="auth-user-info">
+        <span id="userEmail" class="user-email"></span>
+        <span id="syncStatus" class="sync-status"></span>
+      </div>
+      <button type="button" id="signOutBtn" class="ghost auth-btn">로그아웃</button>
+    </div>
+  </div>
+
   <nav class="tabs" role="tablist" aria-label="섹션 선택">
     <button type="button" class="tab-btn" role="tab" data-tab="transactions">거래</button>
     <button type="button" class="tab-btn" role="tab" data-tab="assets">자산</button>
@@ -244,6 +256,6 @@
     <small>데이터는 이 브라우저에만 저장됩니다.</small>
   </footer>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

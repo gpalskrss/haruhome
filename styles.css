@@ -793,6 +793,50 @@ button:active { transform: translateY(1px); }
   padding: 0 4px;
 }
 
+.date-type-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+.radio-inline {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--text) !important;
+  font-size: 0.9rem !important;
+}
+
+.radio-inline input {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+}
+
+.date-type-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.event-lunar-badge {
+  font-size: 0.7rem;
+  color: #8b5cf6;
+  border: 1px solid #c4b5fd;
+  background: #f5f3ff;
+  border-radius: 10px;
+  padding: 1px 6px;
+  margin-left: 6px;
+}
+
+.cal-chip.lunar::before {
+  content: "음 ";
+  opacity: 0.85;
+}
+
 .checkbox-row {
   flex-direction: row !important;
   align-items: center;

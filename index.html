@@ -279,9 +279,20 @@
         </div>
 
         <form id="eventForm" class="tx-form">
+          <div class="date-type-row">
+            <label class="radio-inline">
+              <input type="radio" name="eventDateType" value="solar" id="eventDateTypeSolar" checked />
+              <span>양력</span>
+            </label>
+            <label class="radio-inline">
+              <input type="radio" name="eventDateType" value="lunar" id="eventDateTypeLunar" />
+              <span>음력</span>
+            </label>
+            <span id="eventLunarHint" class="date-type-hint"></span>
+          </div>
           <div class="form-row">
             <label>
-              <span>날짜</span>
+              <span id="eventDateLabel">날짜</span>
               <input type="date" id="eventDate" required />
             </label>
             <label>
@@ -326,6 +337,7 @@
     <small>데이터는 이 브라우저에만 저장됩니다.</small>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.6.11/lunar.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

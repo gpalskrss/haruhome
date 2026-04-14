@@ -243,6 +243,30 @@
         <p id="savingsRateEmpty" class="empty">저축률을 계산할 내역이 없어요.</p>
       </section>
 
+      <section class="panel">
+        <h2>가족 공유</h2>
+        <p id="shareStatus" class="share-status">Google 로그인 후 가족 공유 기능을 사용할 수 있어요.</p>
+        <div id="shareControls" class="share-controls" hidden>
+          <div class="share-action-row">
+            <button type="button" id="generateCodeBtn" class="primary">공유 코드 생성</button>
+            <div class="share-code-help">6자리 코드가 생성되며, 24시간 동안 유효합니다.</div>
+          </div>
+          <div id="shareCodeDisplay" class="share-code-box" hidden>
+            <code id="shareCode">------</code>
+            <button type="button" id="copyCodeBtn" class="ghost">복사</button>
+          </div>
+          <div class="share-action-row">
+            <input type="text" id="joinCodeInput" placeholder="전달받은 공유 코드 입력" maxlength="8" autocomplete="off" />
+            <button type="button" id="joinCodeBtn" class="ghost">코드로 참여</button>
+          </div>
+        </div>
+        <div id="shareMembers" class="share-members" hidden>
+          <h3>가족 구성원</h3>
+          <ul id="memberList" class="member-list"></ul>
+          <button type="button" id="leaveShareBtn" class="ghost" hidden>공유 해제 (개인 가계부로 분리)</button>
+        </div>
+      </section>
+
       <section class="panel danger-zone">
         <h2>데이터 관리</h2>
         <div class="danger-actions">

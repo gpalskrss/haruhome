@@ -11,6 +11,7 @@ import {
   doc,
   getDoc,
   setDoc,
+  updateDoc,
   onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
@@ -145,12 +146,26 @@ const firebaseDb = getFirestore(firebaseApp);
     eventDateTypeLunar: $("eventDateTypeLunar"),
     eventDateLabel: $("eventDateLabel"),
     eventLunarHint: $("eventLunarHint"),
+    shareStatus: $("shareStatus"),
+    shareControls: $("shareControls"),
+    shareMembers: $("shareMembers"),
+    generateCodeBtn: $("generateCodeBtn"),
+    shareCodeDisplay: $("shareCodeDisplay"),
+    shareCode: $("shareCode"),
+    copyCodeBtn: $("copyCodeBtn"),
+    joinCodeInput: $("joinCodeInput"),
+    joinCodeBtn: $("joinCodeBtn"),
+    memberList: $("memberList"),
+    leaveShareBtn: $("leaveShareBtn"),
   };
 
   let currentUser = null;
   let unsubscribeSnapshot = null;
   let pushTimer = null;
   let applyingRemote = false;
+  let currentHid = null;
+  let currentMembers = [];
+  let memberInfo = {};
 
   function loadTransactions() {
     try {
@@ -1047,9 +1062,29 @@ const firebaseDb = getFirestore(firebaseApp);
     pushTimer = setTimeout(() => pushNow(currentUser.uid), 400);
   }
 
+  function randomId(len) {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let r = "";
+    for (let i = 0; i < len; i++) {
+      r += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return r;
+  }
+
+  function randomShareCode() {
+    // 혼동 쉬운 문자(0/O, 1/I/L) 제외
+    const chars = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    let r = "";
+    for (let i = 0; i < 6; i++) {
+      r += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return r;
+  }
+
   async function pushNow(uid) {
+    if (!currentHid) return;
     try {
-      await setDoc(doc(firebaseDb, "userData", uid), {
+      await updateDoc(doc(firebaseDb, "households", currentHid), {
         transactions,
         holdings,
         netWorthHistory: history,
@@ -1064,19 +1099,69 @@ const firebaseDb = getFirestore(firebaseApp);
     }
   }
 
+  async function ensureHousehold(user) {
+    const uid = user.uid;
+    const userRef = doc(firebaseDb, "users", uid);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists() && userSnap.data().hid) {
+      return userSnap.data().hid;
+    }
+
+    // 기존 userData/{uid} 에서 마이그레이션
+    let migratedData = null;
+    try {
+      const oldRef = doc(firebaseDb, "userData", uid);
+      const oldSnap = await getDoc(oldRef);
+      if (oldSnap.exists()) migratedData = oldSnap.data();
+    } catch (e) {
+      // 규칙이 바뀌어 접근 못 하면 무시
+    }
+
+    const hid = randomId(20);
+    const memberProfile = {
+      email: user.email || "",
+      displayName: user.displayName || "",
+      photoURL: user.photoURL || "",
+    };
+    await setDoc(doc(firebaseDb, "households", hid), {
+      members: [uid],
+      memberInfo: { [uid]: memberProfile },
+      transactions: (migratedData && migratedData.transactions) || transactions || [],
+      holdings: (migratedData && migratedData.holdings) || holdings || [],
+      netWorthHistory: (migratedData && migratedData.netWorthHistory) || history || [],
+      goals: (migratedData && migratedData.goals) || goals || {},
+      events: (migratedData && migratedData.events) || events || [],
+      updatedAt: new Date().toISOString(),
+    });
+    await setDoc(userRef, { hid, updatedAt: new Date().toISOString() });
+    return hid;
+  }
+
   async function subscribeUserData(uid) {
     if (unsubscribeSnapshot) {
       unsubscribeSnapshot();
       unsubscribeSnapshot = null;
     }
     setSyncStatus("동기화 중…", "syncing");
-    const ref = doc(firebaseDb, "userData", uid);
+
+    let hid;
+    try {
+      hid = await ensureHousehold(currentUser);
+    } catch (e) {
+      console.error(e);
+      setSyncStatus("초기화 실패", "error");
+      return;
+    }
+    currentHid = hid;
+
+    const ref = doc(firebaseDb, "households", hid);
     try {
       const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        await pushNow(uid);
-      } else {
-        applyRemoteData(snap.data());
+      if (snap.exists()) {
+        const data = snap.data();
+        currentMembers = data.members || [];
+        memberInfo = data.memberInfo || {};
+        applyRemoteData(data);
         setSyncStatus("동기화됨", "synced");
       }
     } catch (e) {
@@ -1084,12 +1169,17 @@ const firebaseDb = getFirestore(firebaseApp);
       setSyncStatus("동기화 실패", "error");
       return;
     }
+
     unsubscribeSnapshot = onSnapshot(
       ref,
       (s) => {
         if (!s.exists()) return;
         if (s.metadata.hasPendingWrites) return;
-        applyRemoteData(s.data());
+        const data = s.data();
+        currentMembers = data.members || [];
+        memberInfo = data.memberInfo || {};
+        applyRemoteData(data);
+        renderSharingPanel();
         setSyncStatus("동기화됨", "synced");
       },
       (err) => {
@@ -1097,6 +1187,7 @@ const firebaseDb = getFirestore(firebaseApp);
         setSyncStatus("연결 오류", "error");
       }
     );
+    renderSharingPanel();
   }
 
   function handleAuthChange(user) {
@@ -1115,7 +1206,11 @@ const firebaseDb = getFirestore(firebaseApp);
         unsubscribeSnapshot();
         unsubscribeSnapshot = null;
       }
+      currentHid = null;
+      currentMembers = [];
+      memberInfo = {};
       setSyncStatus("", null);
+      renderSharingPanel();
     }
   }
 
@@ -1478,6 +1573,212 @@ const firebaseDb = getFirestore(firebaseApp);
     renderCalendar();
   }
 
+  // ========== 가족 공유 ==========
+
+  function renderSharingPanel() {
+    if (!els.shareStatus) return;
+    if (!currentUser) {
+      els.shareStatus.textContent = "Google 로그인 후 가족 공유 기능을 사용할 수 있어요.";
+      els.shareControls.hidden = true;
+      els.shareMembers.hidden = true;
+      return;
+    }
+    if (!currentHid) {
+      els.shareStatus.textContent = "초기화 중…";
+      return;
+    }
+    els.shareControls.hidden = false;
+    els.shareMembers.hidden = false;
+    const count = currentMembers.length;
+    els.shareStatus.textContent =
+      count <= 1
+        ? "지금은 혼자 쓰고 있어요. 공유 코드를 만들어 가족에게 전달하면 함께 쓸 수 있어요."
+        : `현재 ${count}명이 함께 사용 중입니다.`;
+
+    els.memberList.innerHTML = "";
+    currentMembers.forEach((uid) => {
+      const info = memberInfo[uid] || {};
+      const li = document.createElement("li");
+      li.className = "member-item";
+      const name = info.displayName || info.email || uid.slice(0, 8);
+      const isMe = uid === currentUser.uid;
+      li.textContent = `${name}${isMe ? " (나)" : ""}`;
+      if (info.email && info.email !== name) {
+        const sub = document.createElement("span");
+        sub.className = "member-email";
+        sub.textContent = ` · ${info.email}`;
+        li.appendChild(sub);
+      }
+      els.memberList.appendChild(li);
+    });
+    els.leaveShareBtn.hidden = currentMembers.length <= 1;
+  }
+
+  async function generateShareCode() {
+    if (!currentUser || !currentHid) return;
+    try {
+      // 내 멤버 정보를 household 에 최신화 (이메일/이름이 바뀌었을 수도)
+      await updateMemberProfile();
+
+      const code = randomShareCode();
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      await setDoc(doc(firebaseDb, "shareCodes", code), {
+        hid: currentHid,
+        createdBy: currentUser.uid,
+        createdAt: new Date().toISOString(),
+        expiresAt,
+      });
+      els.shareCode.textContent = code;
+      els.shareCodeDisplay.hidden = false;
+    } catch (e) {
+      console.error(e);
+      alert("코드 생성 실패: " + (e.message || ""));
+    }
+  }
+
+  async function updateMemberProfile() {
+    if (!currentUser || !currentHid) return;
+    const profile = {
+      email: currentUser.email || "",
+      displayName: currentUser.displayName || "",
+      photoURL: currentUser.photoURL || "",
+    };
+    const newInfo = { ...memberInfo, [currentUser.uid]: profile };
+    await updateDoc(doc(firebaseDb, "households", currentHid), {
+      memberInfo: newInfo,
+    });
+  }
+
+  async function copyShareCode() {
+    const code = els.shareCode.textContent;
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      els.copyCodeBtn.textContent = "복사됨!";
+      setTimeout(() => (els.copyCodeBtn.textContent = "복사"), 1200);
+    } catch {
+      // fallback
+      els.copyCodeBtn.textContent = "직접 선택 후 복사하세요";
+    }
+  }
+
+  async function joinViaCode() {
+    if (!currentUser) return;
+    const code = (els.joinCodeInput.value || "").toUpperCase().trim();
+    if (!code) {
+      alert("공유 코드를 입력해 주세요.");
+      return;
+    }
+
+    try {
+      const codeSnap = await getDoc(doc(firebaseDb, "shareCodes", code));
+      if (!codeSnap.exists()) {
+        alert("유효하지 않은 코드입니다.");
+        return;
+      }
+      const codeData = codeSnap.data();
+      if (codeData.expiresAt && new Date(codeData.expiresAt) < new Date()) {
+        alert("만료된 코드입니다.");
+        return;
+      }
+      if (codeData.hid === currentHid) {
+        alert("이미 같은 가족에 속해 있어요.");
+        return;
+      }
+
+      const ok = confirm(
+        "참여하시면 이 기기의 현재 가계부 데이터는 사라지고 공유 가계부로 전환됩니다.\n계속할까요?"
+      );
+      if (!ok) return;
+
+      const targetRef = doc(firebaseDb, "households", codeData.hid);
+      const targetSnap = await getDoc(targetRef);
+      if (!targetSnap.exists()) {
+        alert("대상 가계부를 찾을 수 없어요.");
+        return;
+      }
+      const target = targetSnap.data();
+      const newMembers = Array.from(new Set([...(target.members || []), currentUser.uid]));
+      const newInfo = {
+        ...(target.memberInfo || {}),
+        [currentUser.uid]: {
+          email: currentUser.email || "",
+          displayName: currentUser.displayName || "",
+          photoURL: currentUser.photoURL || "",
+        },
+      };
+      await updateDoc(targetRef, {
+        members: newMembers,
+        memberInfo: newInfo,
+      });
+      await setDoc(doc(firebaseDb, "users", currentUser.uid), {
+        hid: codeData.hid,
+        updatedAt: new Date().toISOString(),
+      });
+
+      els.joinCodeInput.value = "";
+      currentHid = codeData.hid;
+      await subscribeUserData(currentUser.uid);
+      alert("가족 공유에 참여했습니다!");
+    } catch (e) {
+      console.error(e);
+      alert("참여 실패: " + (e.message || ""));
+    }
+  }
+
+  async function leaveShare() {
+    if (!currentUser || !currentHid) return;
+    if (currentMembers.length <= 1) {
+      alert("혼자만 있는 가계부는 해제할 필요가 없어요.");
+      return;
+    }
+    const ok = confirm(
+      "공유를 해제하면 새로운 개인 가계부로 분리되고 현재까지의 가족 데이터 복사본이 내 기기에 남습니다.\n계속할까요?"
+    );
+    if (!ok) return;
+
+    try {
+      // 현재 household 에서 나 제외
+      const ref = doc(firebaseDb, "households", currentHid);
+      const snap = await getDoc(ref);
+      if (snap.exists()) {
+        const data = snap.data();
+        const members = (data.members || []).filter((u) => u !== currentUser.uid);
+        const mi = { ...(data.memberInfo || {}) };
+        delete mi[currentUser.uid];
+        await updateDoc(ref, { members, memberInfo: mi });
+      }
+      // 새 개인 가계부 생성 (현재 로컬 데이터 유지)
+      const hid = randomId(20);
+      await setDoc(doc(firebaseDb, "households", hid), {
+        members: [currentUser.uid],
+        memberInfo: {
+          [currentUser.uid]: {
+            email: currentUser.email || "",
+            displayName: currentUser.displayName || "",
+            photoURL: currentUser.photoURL || "",
+          },
+        },
+        transactions,
+        holdings,
+        netWorthHistory: history,
+        goals,
+        events,
+        updatedAt: new Date().toISOString(),
+      });
+      await setDoc(doc(firebaseDb, "users", currentUser.uid), {
+        hid,
+        updatedAt: new Date().toISOString(),
+      });
+      currentHid = hid;
+      await subscribeUserData(currentUser.uid);
+      alert("공유를 해제했습니다. 이제 개인 가계부로 사용해요.");
+    } catch (e) {
+      console.error(e);
+      alert("공유 해제 실패: " + (e.message || ""));
+    }
+  }
+
   function init() {
     els.date.value = todayISO();
     els.monthFilter.value = currentMonth();
@@ -1514,6 +1815,11 @@ const firebaseDb = getFirestore(firebaseApp);
     els.signInBtn.addEventListener("click", handleSignIn);
     els.signOutBtn.addEventListener("click", handleSignOut);
     onAuthStateChanged(firebaseAuth, handleAuthChange);
+
+    if (els.generateCodeBtn) els.generateCodeBtn.addEventListener("click", generateShareCode);
+    if (els.copyCodeBtn) els.copyCodeBtn.addEventListener("click", copyShareCode);
+    if (els.joinCodeBtn) els.joinCodeBtn.addEventListener("click", joinViaCode);
+    if (els.leaveShareBtn) els.leaveShareBtn.addEventListener("click", leaveShare);
 
     els.calPrev.addEventListener("click", () => shiftMonth(-1));
     els.calNext.addEventListener("click", () => shiftMonth(1));

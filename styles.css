@@ -884,6 +884,86 @@ button:active { transform: translateY(1px); }
   .cal-chip { font-size: 0.58rem; padding: 1px 3px; }
 }
 
+.share-status {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.share-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.share-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.share-action-row input {
+  flex: 1;
+  min-width: 140px;
+  font: inherit;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-transform: uppercase;
+}
+
+.share-code-help {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.share-code-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: #eef2ff;
+  border: 1px dashed var(--balance);
+  border-radius: 10px;
+}
+
+.share-code-box code {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--balance);
+  font-family: "SF Mono", "Menlo", monospace;
+  flex: 1;
+}
+
+.share-members h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.member-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.member-item {
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.member-email {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
 .danger-zone .danger-actions {
   display: flex;
   gap: 10px;

@@ -139,7 +139,10 @@ const firebaseDb = getFirestore(firebaseApp);
     eventTitle: $("eventTitle"),
     eventTime: $("eventTime"),
     eventMemo: $("eventMemo"),
-    eventRepeat: $("eventRepeat"),
+    eventRepeatSelect: $("eventRepeatSelect"),
+    eventRepeatUntil: $("eventRepeatUntil"),
+    eventSubmitBtn: $("eventSubmitBtn"),
+    eventCancelBtn: $("eventCancelBtn"),
     eventList: $("eventList"),
     eventEmpty: $("eventEmpty"),
     eventDateTypeSolar: $("eventDateTypeSolar"),
@@ -260,6 +263,7 @@ const firebaseDb = getFirestore(firebaseApp);
   let uiState = loadUIState();
   let calendarViewMonth = null; // "YYYY-MM"
   let selectedDate = null; // "YYYY-MM-DD"
+  let editingEventId = null;
 
   function todayISO() {
     const d = new Date();
@@ -1266,29 +1270,47 @@ const firebaseDb = getFirestore(firebaseApp);
     return solarToLunarISO(todayISO());
   }
 
+  function daysBetweenISO(a, b) {
+    const [ya, ma, da] = a.split("-").map(Number);
+    const [yb, mb, db] = b.split("-").map(Number);
+    const ua = Date.UTC(ya, ma - 1, da);
+    const ub = Date.UTC(yb, mb - 1, db);
+    return Math.round((ub - ua) / (24 * 60 * 60 * 1000));
+  }
+
+  function matchesRepeat(e, anchorISO, cellISO) {
+    // anchorISO: event 기준일 (양력 혹은 음력, 해당 dateType 기준)
+    // cellISO: 비교할 날짜 (양력 혹은 음력, 같은 기준)
+    const repeat = e.repeat || "none";
+    if (repeat === "none") return e.date === cellISO;
+    if (cellISO < anchorISO) return false;
+    if (e.repeatUntil && cellISO > e.repeatUntil) return false;
+
+    const anchorMMDD = anchorISO.slice(5);
+    const cellMMDD = cellISO.slice(5);
+    if (repeat === "yearly") return anchorMMDD === cellMMDD;
+    if (repeat === "monthly") return anchorISO.slice(8, 10) === cellISO.slice(8, 10);
+    if (repeat === "weekly") {
+      const diff = daysBetweenISO(anchorISO, cellISO);
+      return diff >= 0 && diff % 7 === 0;
+    }
+    return false;
+  }
+
   function getEventsForDate(dateISO) {
-    const [y, m, d] = dateISO.split("-").map(Number);
-    const mmdd = dateISO.slice(5);
     const cellLunarISO = solarToLunarISO(dateISO);
-    const cellLunarMMDD = cellLunarISO ? cellLunarISO.slice(5) : null;
 
     return events.filter((e) => {
       if (!e || !e.date) return false;
       const type = e.dateType || "solar";
       if (type === "solar") {
-        if (e.date === dateISO) return true;
-        if (e.repeat === "yearly" && e.date.slice(5) === mmdd && e.date <= dateISO) {
-          return true;
-        }
-        return false;
+        return matchesRepeat(e, e.date, dateISO);
       }
-      // lunar
+      // lunar: 주간/월간 반복은 지원 안 함 (yearly 와 none 만)
       if (!cellLunarISO) return false;
-      if (e.date === cellLunarISO) return true;
-      if (e.repeat === "yearly" && e.date.slice(5) === cellLunarMMDD && e.date <= cellLunarISO) {
-        return true;
-      }
-      return false;
+      const repeat = e.repeat || "none";
+      if (repeat !== "none" && repeat !== "yearly") return false;
+      return matchesRepeat(e, e.date, cellLunarISO);
     });
   }
 
@@ -1385,7 +1407,8 @@ const firebaseDb = getFirestore(firebaseApp);
 
   function selectDate(dateISO) {
     selectedDate = dateISO;
-    // 양력으로 리셋해서 혼동 방지
+    // 수정 중이던 상태/양력으로 리셋해서 혼동 방지
+    resetEventForm();
     els.eventDateTypeSolar.checked = true;
     els.eventDate.value = dateISO;
     syncDateTypeUI();
@@ -1439,12 +1462,19 @@ const firebaseDb = getFirestore(firebaseApp);
       tag.textContent = e.category || "기타";
       title.appendChild(tag);
       title.append(e.title);
-      if (e.repeat === "yearly") {
+
+      const repeat = e.repeat || "none";
+      if (repeat === "yearly") {
         const originalYear = Number(e.date.slice(0, 4));
         const diff = currentYear - originalYear;
         const badge = document.createElement("span");
         badge.className = "event-repeat-badge";
         badge.textContent = diff > 0 ? `${diff}주년 · 매년` : "매년";
+        title.appendChild(badge);
+      } else if (repeat === "weekly" || repeat === "monthly") {
+        const badge = document.createElement("span");
+        badge.className = "event-repeat-badge";
+        badge.textContent = repeat === "weekly" ? "매주" : "매달";
         title.appendChild(badge);
       }
       if ((e.dateType || "solar") === "lunar") {
@@ -1462,10 +1492,17 @@ const firebaseDb = getFirestore(firebaseApp);
       if ((e.dateType || "solar") === "lunar") {
         parts.push(`양력 ${selectedDate}`);
       }
+      if (e.repeatUntil) parts.push(`~${e.repeatUntil} 까지`);
       meta.textContent = parts.join(" · ") || "—";
 
       info.appendChild(title);
       info.appendChild(meta);
+
+      const edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "tx-edit";
+      edit.textContent = "수정";
+      edit.addEventListener("click", () => startEditEvent(e));
 
       const del = document.createElement("button");
       del.type = "button";
@@ -1475,7 +1512,7 @@ const firebaseDb = getFirestore(firebaseApp);
       del.addEventListener("click", () => deleteEvent(e.id));
 
       li.appendChild(info);
-      li.appendChild(document.createElement("span")); // spacer
+      li.appendChild(edit);
       li.appendChild(del);
       els.eventList.appendChild(li);
     });
@@ -1488,11 +1525,22 @@ const firebaseDb = getFirestore(firebaseApp);
     const category = els.eventCategory.value;
     const time = els.eventTime.value || "";
     const memo = els.eventMemo.value.trim();
-    const repeat = els.eventRepeat.checked ? "yearly" : "none";
+    const repeat = els.eventRepeatSelect.value; // none / weekly / monthly / yearly
+    const repeatUntil = els.eventRepeatUntil.value || null;
     const dateType = els.eventDateTypeLunar.checked ? "lunar" : "solar";
 
     if (!date || !title) {
       alert("날짜와 제목을 입력해 주세요.");
+      return;
+    }
+
+    if (dateType === "lunar" && (repeat === "weekly" || repeat === "monthly")) {
+      alert("음력 일정은 매주/매달 반복을 지원하지 않아요. 매년 반복으로 바꾸거나 양력으로 전환해 주세요.");
+      return;
+    }
+
+    if (repeatUntil && repeatUntil < date) {
+      alert("종료일이 시작일보다 앞설 수 없어요.");
       return;
     }
 
@@ -1512,8 +1560,7 @@ const firebaseDb = getFirestore(firebaseApp);
       solarAnchor = solar;
     }
 
-    events.push({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    const record = {
       date,
       dateType,
       title,
@@ -1521,20 +1568,71 @@ const firebaseDb = getFirestore(firebaseApp);
       time,
       memo,
       repeat,
-      createdAt: Date.now(),
-    });
+      repeatUntil,
+    };
+
+    if (editingEventId) {
+      const idx = events.findIndex((x) => x.id === editingEventId);
+      if (idx >= 0) {
+        events[idx] = { ...events[idx], ...record, updatedAt: Date.now() };
+      }
+      editingEventId = null;
+    } else {
+      events.push({
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        ...record,
+        createdAt: Date.now(),
+      });
+    }
     saveEvents(events);
 
-    els.eventTitle.value = "";
-    els.eventTime.value = "";
-    els.eventMemo.value = "";
-    els.eventRepeat.checked = false;
+    resetEventForm();
 
-    // 등록한 일정이 표시되는 양력 날짜로 달력 이동
+    // 등록/수정한 일정이 표시되는 양력 날짜로 달력 이동
     selectedDate = solarAnchor;
     calendarViewMonth = solarAnchor.slice(0, 7);
     syncDateTypeUI();
     renderCalendar();
+  }
+
+  function startEditEvent(ev) {
+    editingEventId = ev.id;
+    els.eventDate.value = ev.date;
+    els.eventTitle.value = ev.title || "";
+    els.eventCategory.value = ev.category || "기타";
+    els.eventTime.value = ev.time || "";
+    els.eventMemo.value = ev.memo || "";
+    els.eventRepeatSelect.value = ev.repeat || "none";
+    els.eventRepeatUntil.value = ev.repeatUntil || "";
+    if ((ev.dateType || "solar") === "lunar") {
+      els.eventDateTypeLunar.checked = true;
+    } else {
+      els.eventDateTypeSolar.checked = true;
+    }
+    syncDateTypeUI();
+    els.eventSubmitBtn.textContent = "일정 수정";
+    els.eventCancelBtn.hidden = false;
+    // 폼으로 스크롤
+    els.eventForm.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function resetEventForm() {
+    editingEventId = null;
+    els.eventTitle.value = "";
+    els.eventTime.value = "";
+    els.eventMemo.value = "";
+    els.eventRepeatSelect.value = "none";
+    els.eventRepeatUntil.value = "";
+    els.eventSubmitBtn.textContent = "일정 추가";
+    els.eventCancelBtn.hidden = true;
+  }
+
+  function cancelEditEvent() {
+    resetEventForm();
+    // 선택한 날짜로 폼 복원
+    els.eventDate.value = selectedDate || todayISO();
+    els.eventDateTypeSolar.checked = true;
+    syncDateTypeUI();
   }
 
   function syncDateTypeUI() {
@@ -1828,6 +1926,7 @@ const firebaseDb = getFirestore(firebaseApp);
       selectDate(todayISO());
     });
     els.eventForm.addEventListener("submit", addEvent);
+    els.eventCancelBtn.addEventListener("click", cancelEditEvent);
     els.eventDateTypeSolar.addEventListener("change", syncDateTypeUI);
     els.eventDateTypeLunar.addEventListener("change", syncDateTypeUI);
     if (!lunarAvailable) {

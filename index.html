@@ -344,11 +344,25 @@
             <span>메모 (선택)</span>
             <input type="text" id="eventMemo" placeholder="예: 선물 준비" maxlength="80" />
           </label>
-          <label class="checkbox-row">
-            <input type="checkbox" id="eventRepeat" />
-            <span>매년 반복 (기념일/생일 추천)</span>
-          </label>
-          <button type="submit" class="primary">일정 추가</button>
+          <div class="form-row">
+            <label>
+              <span>반복</span>
+              <select id="eventRepeatSelect">
+                <option value="none">반복 안 함</option>
+                <option value="weekly">매주</option>
+                <option value="monthly">매달</option>
+                <option value="yearly">매년</option>
+              </select>
+            </label>
+            <label>
+              <span id="repeatUntilLabel">종료일 (선택)</span>
+              <input type="date" id="eventRepeatUntil" />
+            </label>
+          </div>
+          <div class="form-actions">
+            <button type="submit" id="eventSubmitBtn" class="primary">일정 추가</button>
+            <button type="button" id="eventCancelBtn" class="ghost" hidden>취소</button>
+          </div>
         </form>
 
         <ul id="eventList" class="tx-list"></ul>

@@ -884,6 +884,15 @@ button:active { transform: translateY(1px); }
   .cal-chip { font-size: 0.58rem; padding: 1px 3px; }
 }
 
+.form-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.form-actions button {
+  flex: 1;
+}
+
 .share-status {
   margin: 0 0 14px;
   color: var(--muted);
